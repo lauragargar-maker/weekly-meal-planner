@@ -1,17 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { WeeklyMenu, DishIdea } from './types'
-import MenuListView from './components/MenuListView'
 import MenuAgendaView from './components/MenuAgendaView'
-import ViewToggle from './components/ViewToggle'
-import { ViewMode } from './types'
-import { exportMenuToPDF } from './utils/pdfExport'
 import { generateWeeklyMenu } from './utils/menuGenerator'
 
 function App() {
   const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
   const [dishIdeas, setDishIdeas] = useState<DishIdea[]>([])
-  const [viewMode, setViewMode] = useState<ViewMode>('agenda')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const isGeneratingMenuRef = useRef(false)
@@ -460,12 +455,6 @@ function App() {
     }
   }, [currentMenu, dishIdeas])
 
-  const handleExportPDF = () => {
-    if (currentMenu) {
-      exportMenuToPDF(currentMenu)
-    }
-  }
-
   const handleRegenerateMenu = useCallback(async () => {
     if (dishIdeas.length === 0) {
       setError('No dish ideas available. Please add dishes first.')
@@ -570,54 +559,29 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <h1 className="text-2xl font-bold text-gray-900">Weekly Meal Planning</h1>
-            <div className="flex gap-2">
-              <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
-              {currentMenu && (
-                <>
-                  <button
-                    onClick={handleRegenerateMenu}
-                    className="btn-secondary flex items-center gap-2"
-                    aria-label="Regenerate Menu"
-                    disabled={loading}
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                    {loading ? 'Regenerating...' : 'Regenerate Menu'}
-                  </button>
-                  <button
-                    onClick={handleExportPDF}
-                    className="btn-primary flex items-center gap-2"
-                    aria-label="Export to PDF"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    Export PDF
-                  </button>
-                </>
-              )}
-            </div>
+            {currentMenu && (
+              <button
+                onClick={handleRegenerateMenu}
+                className="btn-secondary flex items-center gap-2"
+                aria-label="Regenerate Menu"
+                disabled={loading}
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                {loading ? 'Regenerating...' : 'Regenerate Menu'}
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -630,11 +594,7 @@ function App() {
         )}
 
         {currentMenu ? (
-          viewMode === 'list' ? (
-            <MenuListView menu={currentMenu} dishIdeas={dishIdeas} onUpdateDish={updateMenuItem} />
-          ) : (
-            <MenuAgendaView menu={currentMenu} dishIdeas={dishIdeas} onUpdateDish={updateMenuItem} />
-          )
+          <MenuAgendaView menu={currentMenu} dishIdeas={dishIdeas} onUpdateDish={updateMenuItem} />
         ) : (
           <div className="card text-center">
             <p className="text-gray-600 mb-4">No menu available for this week.</p>
