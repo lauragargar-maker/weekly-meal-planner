@@ -4,6 +4,25 @@ import { WeeklyMenu, DishIdea } from './types'
 import MenuAgendaView from './components/MenuAgendaView'
 import { generateWeeklyMenu } from './utils/menuGenerator'
 
+/** Return the Saturday that starts the current week period (Sat–Fri). */
+const getCurrentWeekSaturday = (): Date => {
+  const today = new Date()
+  const dayOfWeek = today.getDay() // 0=Sun … 6=Sat
+  // How many days back to the most recent Saturday (0 if today is Saturday)
+  const daysBack = (dayOfWeek + 1) % 7 // Sat=0, Sun=1, Mon=2, … Fri=6
+  const saturday = new Date(today)
+  saturday.setDate(today.getDate() - daysBack)
+  saturday.setHours(0, 0, 0, 0)
+  return saturday
+}
+
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function App() {
   const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
   const [dishIdeas, setDishIdeas] = useState<DishIdea[]>([])
@@ -39,25 +58,8 @@ function App() {
 
     isGeneratingMenuRef.current = true
     try {
-      // Format dates in local timezone to avoid timezone conversion issues
-      const formatLocalDate = (date: Date): string => {
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-      }
-
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekStart.getDate() + 6)
-
-      console.log('📅 Saving menu (generateNewMenu) with dates:', {
-        weekStartDate: weekStart,
-        weekStartLocal: formatLocalDate(weekStart),
-        weekStartISO: weekStart.toISOString().split('T')[0],
-        weekStartDay: weekStart.getDay(),
-        weekStartDayName: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekStart.getDay()],
-        weekEndLocal: formatLocalDate(weekEnd),
-      })
 
       const menuItems = generateWeeklyMenu({ dishIdeas: dishes, weekStart })
 
@@ -144,44 +146,8 @@ function App() {
 
   const loadCurrentMenu = useCallback(async (shouldGenerateIfMissing = false) => {
     try {
-      // Get next week's menu (week starts on next Saturday)
-      const today = new Date()
-      const weekStart = new Date(today)
-      const dayOfWeek = today.getDay() // 0 = Sunday, 6 = Saturday
-      // Calculate days until next Saturday
-      // If today is Saturday, use next Saturday (7 days)
-      // Otherwise: (6 - dayOfWeek) gives days until Saturday, but if it's 0 or negative, add 7
-      const daysUntilSaturday = dayOfWeek === 6 ? 7 : (6 - dayOfWeek + 7) % 7
-      console.log('📅 Week calculation:', {
-        today: today.toISOString().split('T')[0],
-        dayOfWeek: dayOfWeek,
-        dayName: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek],
-        daysUntilSaturday,
-        nextSaturday: new Date(today.getTime() + daysUntilSaturday * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-      })
-      weekStart.setDate(today.getDate() + daysUntilSaturday)
-      weekStart.setHours(0, 0, 0, 0)
-      
-      const weekEnd = new Date(weekStart)
-      weekEnd.setDate(weekStart.getDate() + 6)
-      weekEnd.setHours(23, 59, 59, 999)
-
-      // Format date in local timezone for query
-      const formatLocalDate = (date: Date): string => {
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-      }
-
+      const weekStart = getCurrentWeekSaturday()
       const weekStartFormatted = formatLocalDate(weekStart)
-      console.log('📅 Querying menu with week_start:', {
-        weekStartDate: weekStart,
-        weekStartFormatted,
-        weekStartISO: weekStart.toISOString().split('T')[0],
-        weekStartDay: weekStart.getDay(),
-        weekStartDayName: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekStart.getDay()],
-      })
 
       const { data, error } = await supabase
         .from('weekly_menus')
@@ -189,7 +155,7 @@ function App() {
         .eq('week_start', weekStartFormatted)
         .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error && error.code !== 'PGRST116') {
         throw error
       }
 
@@ -197,7 +163,6 @@ function App() {
         setCurrentMenu(data as WeeklyMenu)
         setError(null)
       } else if (shouldGenerateIfMissing && dishIdeas.length > 0 && !isGeneratingMenuRef.current) {
-        // Only generate if explicitly requested and not already generating
         await generateNewMenu(weekStart, dishIdeas)
       }
     } catch (err) {
@@ -226,31 +191,9 @@ function App() {
           setDishIdeas(dishesData as DishIdea[] || [])
         }
         
-        // Then load menu (week starts on next Saturday)
+        // Then load menu (current week, starting Saturday)
         if (mounted) {
-          const today = new Date()
-          const weekStart = new Date(today)
-          const dayOfWeek = today.getDay() // 0 = Sunday, 6 = Saturday
-          // Calculate days until next Saturday
-          const daysUntilSaturday = dayOfWeek === 6 ? 7 : (6 - dayOfWeek + 7) % 7
-          console.log('📅 Week calculation (initial load):', {
-            today: today.toISOString().split('T')[0],
-            dayOfWeek: dayOfWeek,
-            dayName: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek],
-            daysUntilSaturday,
-            nextSaturday: new Date(today.getTime() + daysUntilSaturday * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          })
-          weekStart.setDate(today.getDate() + daysUntilSaturday)
-          weekStart.setHours(0, 0, 0, 0)
-
-          // Format date in local timezone for query
-          const formatLocalDate = (date: Date): string => {
-            const year = date.getFullYear()
-            const month = String(date.getMonth() + 1).padStart(2, '0')
-            const day = String(date.getDate()).padStart(2, '0')
-            return `${year}-${month}-${day}`
-          }
-
+          const weekStart = getCurrentWeekSaturday()
           const weekStartFormatted = formatLocalDate(weekStart)
           console.log('📅 Querying menu (initial load) with week_start:', {
             weekStartDate: weekStart,
@@ -273,28 +216,10 @@ function App() {
           if (menuData) {
             setCurrentMenu(menuData as WeeklyMenu)
           } else if (dishesData && dishesData.length > 0 && !isGeneratingMenuRef.current) {
-            // Generate menu only on initial load if it doesn't exist
             isGeneratingMenuRef.current = true
             try {
-              // Format dates in local timezone to avoid timezone conversion issues
-              const formatLocalDate = (date: Date): string => {
-                const year = date.getFullYear()
-                const month = String(date.getMonth() + 1).padStart(2, '0')
-                const day = String(date.getDate()).padStart(2, '0')
-                return `${year}-${month}-${day}`
-              }
-
               const weekEnd = new Date(weekStart)
               weekEnd.setDate(weekStart.getDate() + 6)
-
-              console.log('📅 Saving menu with dates:', {
-                weekStartDate: weekStart,
-                weekStartLocal: formatLocalDate(weekStart),
-                weekStartISO: weekStart.toISOString().split('T')[0],
-                weekStartDay: weekStart.getDay(),
-                weekStartDayName: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekStart.getDay()],
-                weekEndLocal: formatLocalDate(weekEnd),
-              })
 
               const menuItems = generateWeeklyMenu({ dishIdeas: dishesData as DishIdea[], weekStart })
 
@@ -339,17 +264,6 @@ function App() {
 
     initializeData()
     
-    // Subscribe to real-time updates (only refresh, don't generate)
-    const getCurrentWeekStart = () => {
-      const today = new Date()
-      const weekStart = new Date(today)
-      const dayOfWeek = today.getDay() // 0 = Sunday, 6 = Saturday
-      // Calculate days until next Saturday
-      const daysUntilSaturday = dayOfWeek === 6 ? 7 : (6 - dayOfWeek + 7) % 7
-      weekStart.setDate(today.getDate() + daysUntilSaturday)
-      return weekStart.toISOString().split('T')[0]
-    }
-
     menuChannel = supabase
       .channel('weekly_menus_changes')
       .on(
@@ -362,7 +276,7 @@ function App() {
         async (payload) => {
           // Only reload if it's the current week's menu and we're not generating
           if (mounted && !isGeneratingMenuRef.current) {
-            const weekStart = getCurrentWeekStart()
+            const weekStart = formatLocalDate(getCurrentWeekSaturday())
             if (payload.new && (payload.new as any).week_start === weekStart) {
               const { data } = await supabase
                 .from('weekly_menus')
@@ -470,29 +384,8 @@ function App() {
       setLoading(true)
       setError(null)
 
-      // Calculate next Saturday (same logic as loadCurrentMenu)
-      const today = new Date()
-      const weekStart = new Date(today)
-      const dayOfWeek = today.getDay() // 0 = Sunday, 6 = Saturday
-      const daysUntilSaturday = dayOfWeek === 6 ? 7 : (6 - dayOfWeek + 7) % 7
-      weekStart.setDate(today.getDate() + daysUntilSaturday)
-      weekStart.setHours(0, 0, 0, 0)
-
-      // Format date in local timezone
-      const formatLocalDate = (date: Date): string => {
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-      }
-
+      const weekStart = getCurrentWeekSaturday()
       const weekStartFormatted = formatLocalDate(weekStart)
-
-      console.log('🔄 Regenerating menu:', {
-        weekStart: weekStartFormatted,
-        weekStartDay: weekStart.getDay(),
-        weekStartDayName: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekStart.getDay()],
-      })
 
       // Try to update existing menu first, if it doesn't exist, generateNewMenu will create it
       const { data: existingMenu } = await supabase
@@ -600,21 +493,7 @@ function App() {
             <p className="text-gray-600 mb-4">No menu available for this week.</p>
             <button
               onClick={() => {
-                const today = new Date()
-                const weekStart = new Date(today)
-                const dayOfWeek = today.getDay() // 0 = Sunday, 6 = Saturday
-                // Calculate days until next Saturday
-                const daysUntilSaturday = dayOfWeek === 6 ? 7 : (6 - dayOfWeek + 7) % 7
-                console.log('📅 Week calculation (manual generate):', {
-                  today: today.toISOString().split('T')[0],
-                  dayOfWeek: dayOfWeek,
-                  dayName: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek],
-                  daysUntilSaturday,
-                  nextSaturday: new Date(today.getTime() + daysUntilSaturday * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                })
-                weekStart.setDate(today.getDate() + daysUntilSaturday)
-                weekStart.setHours(0, 0, 0, 0)
-                generateNewMenu(weekStart, dishIdeas)
+                generateNewMenu(getCurrentWeekSaturday(), dishIdeas)
               }}
               className="btn-primary"
             >
