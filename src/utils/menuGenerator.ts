@@ -41,7 +41,7 @@ const getLunchIngredient = (map: Map<string, DishIdea>, menuItem?: MenuItem): In
   return getDish(map, menuItem.main)?.main_ingredient
 }
 
-const buildDayWords = (map: Map<string, DishIdea>, dayISO: string, items: MenuItem[]): Set<string> => {
+const buildDayWords = (_map: Map<string, DishIdea>, dayISO: string, items: MenuItem[]): Set<string> => {
   const words = new Set<string>()
   for (const item of items.filter(menuItem => menuItem.day === dayISO)) {
     if (item.starter) {
@@ -139,7 +139,7 @@ const validateMenu = (
 }
 
 const pickLunch = (
-  map: Map<string, DishIdea>,
+  _map: Map<string, DishIdea>,
   dayISO: string,
   isLegumeDay: boolean,
   legumeRequired: boolean,
@@ -209,7 +209,7 @@ const pickLunch = (
 }
 
 const pickDinner = (
-  map: Map<string, DishIdea>,
+  _map: Map<string, DishIdea>,
   dayISO: string,
   lunchIngredient: Ingredient,
   existingWords: Set<string>,
@@ -270,7 +270,7 @@ const ensureFishDays = (
     for (const candidate of shuffleArray(fishDinnerOptions)) {
       if (candidate.main_ingredient !== 'fish') continue
       if (lunchIngredient === 'fish') continue
-      if (lunchIngredient === 'egg' && candidate.main_ingredient === 'egg') continue
+      if (lunchIngredient === 'egg') continue
       if (hasWordOverlap(lunchWords, candidate.name)) continue
       if (usedDishes.has(candidate.name)) continue
 
