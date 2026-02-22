@@ -1,0 +1,32 @@
+name: Generate Weekly Menu
+
+on:
+  schedule:
+    # Run every Friday at 8 AM UTC
+    - cron: '0 8 * * FRI'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  generate-menu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Weekly Menu
+        run: |
+          curl -X POST ${{ secrets.SUPABASE_FUNCTION_URL }}/generate-weekly-menu \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json"
+      
+      - name: Send WhatsApp Notification
+        run: |
+          curl -X POST ${{ secrets.SUPABASE_FUNCTION_URL }}/send-whatsapp-notification \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"phoneNumber\": \"${{ secrets.WHATSAPP_CONTACT }}\"}"
+
+
+
+
+
+
+
+
