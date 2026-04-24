@@ -41,11 +41,11 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, weekOffs
     <div className="bg-white rounded p-4 border-l-4 border-primary-500">
       <h4 className="text-lg font-semibold text-primary-700 mb-2">🌅 Lunch</h4>
       {lunch.single ? (
-        <p className="text-lg text-gray-700"><DishEditor value={lunch.single} slot="single" mealType="lunch" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} /></p>
+        <p className="text-lg text-gray-700"><DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} /></p>
       ) : (
         <ul className="text-lg text-gray-700 space-y-2">
-          {lunch.starter && <li><DishEditor value={lunch.starter} slot="starter" mealType="lunch" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} /></li>}
-          {lunch.main && <li><DishEditor value={lunch.main} slot="main" mealType="lunch" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} /></li>}
+          {lunch.starter && <li><DishEditor value={lunch.starter} slot="starter" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} /></li>}
+          {lunch.main && <li><DishEditor value={lunch.main} slot="main" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} /></li>}
         </ul>
       )}
     </div>
@@ -55,7 +55,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, weekOffs
     <div className="bg-white rounded p-4 border-l-4 border-primary-600">
       <h4 className="text-lg font-semibold text-primary-700 mb-2">🌙 Dinner</h4>
       {dinner.main && (
-        <p className="text-lg text-gray-700"><DishEditor value={dinner.main} slot="main" mealType="dinner" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} /></p>
+        <p className="text-lg text-gray-700"><DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} /></p>
       )}
     </div>
   )
@@ -155,11 +155,11 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, weekOffs
                     <div className="bg-white rounded p-3 border-l-4 border-primary-500">
                       <h4 className="text-base font-semibold text-primary-700 mb-1">🌅 Lunch</h4>
                       {lunch.single ? (
-                        <p className="text-base text-gray-700"><DishEditor value={lunch.single} slot="single" mealType="lunch" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} /></p>
+                        <p className="text-base text-gray-700"><DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} /></p>
                       ) : (
                         <ul className="text-base text-gray-700 space-y-1">
-                          {lunch.starter && <li><DishEditor value={lunch.starter} slot="starter" mealType="lunch" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} /></li>}
-                          {lunch.main && <li><DishEditor value={lunch.main} slot="main" mealType="lunch" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} /></li>}
+                          {lunch.starter && <li><DishEditor value={lunch.starter} slot="starter" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} /></li>}
+                          {lunch.main && <li><DishEditor value={lunch.main} slot="main" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} /></li>}
                         </ul>
                       )}
                     </div>
@@ -169,7 +169,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, weekOffs
                     <div className="bg-white rounded p-3 border-l-4 border-primary-600">
                       <h4 className="text-base font-semibold text-primary-700 mb-1">🌙 Dinner</h4>
                       {dinner.main && (
-                        <p className="text-base text-gray-700"><DishEditor value={dinner.main} slot="main" mealType="dinner" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} /></p>
+                        <p className="text-base text-gray-700"><DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} /></p>
                       )}
                     </div>
                   )}

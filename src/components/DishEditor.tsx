@@ -5,11 +5,17 @@ interface DishEditorProps {
   value: string
   slot: 'starter' | 'main' | 'single'
   mealType: 'lunch' | 'dinner'
+  day: string // ISO date string
   dishIdeas: DishIdea[]
   onUpdate: (newDishName: string, selectedCategory: 'starter' | 'main' | 'single') => void
 }
 
-export default function DishEditor({ value, slot, mealType, dishIdeas, onUpdate }: DishEditorProps) {
+const isWeekendDay = (isoDate: string): boolean => {
+  const d = new Date(isoDate).getDay()
+  return d === 0 || d === 6
+}
+
+export default function DishEditor({ value, slot, mealType, day, dishIdeas, onUpdate }: DishEditorProps) {
   const [editing, setEditing] = useState(false)
   const selectRef = useRef<HTMLSelectElement>(null)
 
@@ -19,7 +25,11 @@ export default function DishEditor({ value, slot, mealType, dishIdeas, onUpdate 
     }
   }, [editing])
 
+  const weekend = isWeekendDay(day)
   const compatibleDishes = dishIdeas.filter((dish) => {
+    // Filter by day type
+    if (dish.day_type === 'weekendday' && !weekend) return false
+    if (dish.day_type === 'weekday' && weekend) return false
     // Filter by meal_type compatibility
     if (dish.meal_type !== 'both' && dish.meal_type !== mealType) return false
     // For dinner main: exclude pasta dishes

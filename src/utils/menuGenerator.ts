@@ -32,6 +32,17 @@ const formatLocalDate = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
+const isWeekendDay = (date: Date): boolean => {
+  const day = date.getDay()
+  return day === 0 || day === 6
+}
+
+const isDishCompatibleWithDay = (dish: DishIdea, weekend: boolean): boolean => {
+  if (dish.day_type === 'anyday') return true
+  if (dish.day_type === 'weekendday') return weekend
+  return !weekend // weekday
+}
+
 const getDish = (map: Map<string, DishIdea>, name?: string): DishIdea | undefined =>
   name ? map.get(name) : undefined
 
@@ -246,6 +257,7 @@ const ensureFishDays = (
   fishLunchOptions: DishIdea[],
   fishDinnerOptions: DishIdea[],
   usedDishes: Set<string>,
+  weekendDays: Set<string>,
 ): boolean => {
   const fishDays = computeFishDays(map, menuItems)
   if (fishDays.size >= 2) return true
@@ -266,8 +278,10 @@ const ensureFishDays = (
 
     const lunchIngredient = getLunchIngredient(map, lunchItem)
     const lunchWords = buildDayWords(map, dayISO, [lunchItem])
+    const weekend = weekendDays.has(dayISO)
 
     for (const candidate of shuffleArray(fishDinnerOptions)) {
+      if (!isDishCompatibleWithDay(candidate, weekend)) continue
       if (candidate.main_ingredient !== 'fish') continue
       if (lunchIngredient === 'fish') continue
       if (lunchIngredient === 'egg') continue
@@ -304,18 +318,17 @@ const ensureFishDays = (
     originalLunchNames.forEach(name => usedDishes.delete(name))
 
     const dinnerWords = dinnerItem ? new Set(extractWords(dinnerItem.main ?? '')) : new Set<string>()
+    const weekend = weekendDays.has(dayISO)
+    const dayStarters = starters.filter(d => isDishCompatibleWithDay(d, weekend))
 
     for (const candidate of shuffleArray(fishLunchOptions)) {
+      if (!isDishCompatibleWithDay(candidate, weekend)) continue
       if (candidate.main_ingredient !== 'fish') continue
       if (usedDishes.has(candidate.name)) continue
 
       if (candidate.category === 'single') {
         if (hasWordOverlap(dinnerWords, candidate.name)) continue
-        menuItems[lunchIndex] = {
-          day: dayISO,
-          meal_type: 'lunch',
-          single: candidate.name,
-        }
+        menuItems[lunchIndex] = { day: dayISO, meal_type: 'lunch', single: candidate.name }
         usedDishes.add(candidate.name)
         return true
       }
@@ -338,7 +351,7 @@ const ensureFishDays = (
           }
         }
 
-        for (const starter of shuffleArray(starters)) {
+        for (const starter of shuffleArray(dayStarters)) {
           if (usedDishes.has(starter.name) || usedDishes.has(candidate.name)) continue
           const starterWords = new Set(extractWords(starter.name))
           if (hasWordOverlap(starterWords, candidate.name)) continue
@@ -373,50 +386,40 @@ const ensureFishDays = (
 }
 
 const generateBasicMenu = (dishIdeas: DishIdea[], weekStart: Date): MenuItem[] => {
-  const starters = dishIdeas.filter(d => d.category === 'starter')
-  const mains = dishIdeas.filter(d => d.category === 'main')
-  const singleCourses = dishIdeas.filter(d => d.category === 'single')
-  const dinnerMains = mains.filter(d => d.main_ingredient !== 'pasta')
   const used = new Set<string>()
-
   const menuItems: MenuItem[] = []
+
   for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
     const date = new Date(weekStart)
     date.setDate(weekStart.getDate() + dayIndex)
     const dayISO = formatLocalDate(date)
+    const weekend = isWeekendDay(date)
+    const dayDishes = dishIdeas.filter(d => isDishCompatibleWithDay(d, weekend))
+
+    const starters = dayDishes.filter(d => d.category === 'starter')
+    const mains = dayDishes.filter(d => d.category === 'main')
+    const singleCourses = dayDishes.filter(d => d.category === 'single')
+    const dinnerMains = mains.filter(d => d.main_ingredient !== 'pasta')
 
     const useSingle = singleCourses.length > 0 && Math.random() < 0.5
     if (useSingle) {
       const singleCandidates = shuffleArray(singleCourses.filter(d => !used.has(d.name)))
       const single = (singleCandidates[0] ?? shuffleArray(singleCourses)[0]) ?? null
-      menuItems.push({
-        day: dayISO,
-        meal_type: 'lunch',
-        single: single?.name,
-      })
+      menuItems.push({ day: dayISO, meal_type: 'lunch', single: single?.name })
       if (single?.name) used.add(single.name)
     } else {
       const starterCandidates = shuffleArray(starters.filter(d => !used.has(d.name)))
       const starter = (starterCandidates[0] ?? shuffleArray(starters)[0]) ?? null
       const mainCandidates = shuffleArray(mains.filter(d => !used.has(d.name)))
       const main = (mainCandidates[0] ?? shuffleArray(mains)[0]) ?? null
-      menuItems.push({
-        day: dayISO,
-        meal_type: 'lunch',
-        starter: starter?.name,
-        main: main?.name,
-      })
+      menuItems.push({ day: dayISO, meal_type: 'lunch', starter: starter?.name, main: main?.name })
       if (starter?.name) used.add(starter.name)
       if (main?.name) used.add(main.name)
     }
 
     const dinnerCandidates = shuffleArray(dinnerMains.filter(d => !used.has(d.name)))
     const dinnerMain = (dinnerCandidates[0] ?? shuffleArray(dinnerMains)[0] ?? shuffleArray(mains)[0]) ?? null
-    menuItems.push({
-      day: dayISO,
-      meal_type: 'dinner',
-      main: dinnerMain?.name,
-    })
+    menuItems.push({ day: dayISO, meal_type: 'dinner', main: dinnerMain?.name })
     if (dinnerMain?.name) used.add(dinnerMain.name)
   }
 
@@ -426,17 +429,26 @@ const generateBasicMenu = (dishIdeas: DishIdea[], weekStart: Date): MenuItem[] =
 export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptions): MenuItem[] {
   const dishMap = new Map<string, DishIdea>(dishIdeas.map(dish => [dish.name, dish]))
 
-  const starters = dishIdeas.filter(d => d.category === 'starter' && (d.meal_type === 'lunch' || d.meal_type === 'both'))
-  const mains = dishIdeas.filter(d => d.category === 'main' && (d.meal_type === 'lunch' || d.meal_type === 'both'))
-  const singleCourses = dishIdeas.filter(d => d.category === 'single' && (d.meal_type === 'lunch' || d.meal_type === 'both'))
-  const dinnerMains = dishIdeas.filter(
+  // Pre-compute which ISO dates fall on weekends for the 7-day window
+  const weekendDays = new Set<string>()
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(weekStart)
+    date.setDate(weekStart.getDate() + i)
+    if (isWeekendDay(date)) weekendDays.add(formatLocalDate(date))
+  }
+
+  // All-dish pools (unfiltered by day type) — day-specific filtering happens per iteration
+  const allStarters = dishIdeas.filter(d => d.category === 'starter' && (d.meal_type === 'lunch' || d.meal_type === 'both'))
+  const allMains = dishIdeas.filter(d => d.category === 'main' && (d.meal_type === 'lunch' || d.meal_type === 'both'))
+  const allSingleCourses = dishIdeas.filter(d => d.category === 'single' && (d.meal_type === 'lunch' || d.meal_type === 'both'))
+  const allDinnerMains = dishIdeas.filter(
     d => d.category === 'main' && (d.meal_type === 'dinner' || d.meal_type === 'both') && d.main_ingredient !== 'pasta',
   )
 
   const legumeLunchAvailable =
-    [...singleCourses, ...mains].some(d => d.main_ingredient === 'legume')
+    [...allSingleCourses, ...allMains].some(d => d.main_ingredient === 'legume')
 
-  if (dinnerMains.length === 0) {
+  if (allDinnerMains.length === 0) {
     console.warn('No dinner mains available (without pasta). Returning basic menu.')
     return generateBasicMenu(dishIdeas, weekStart)
   }
@@ -457,16 +469,23 @@ export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptio
       const date = new Date(weekStart)
       date.setDate(weekStart.getDate() + dayIndex)
       const dayISO = formatLocalDate(date)
+      const weekend = weekendDays.has(dayISO)
       const isLegumeDay = legumeDayIndex === dayIndex
+
+      // Filter dish pools to only those compatible with this day's weekday/weekend type
+      const dayStarters = allStarters.filter(d => isDishCompatibleWithDay(d, weekend))
+      const dayMains = allMains.filter(d => isDishCompatibleWithDay(d, weekend))
+      const daySingleCourses = allSingleCourses.filter(d => isDishCompatibleWithDay(d, weekend))
+      const dayDinnerMains = allDinnerMains.filter(d => isDishCompatibleWithDay(d, weekend))
 
       const lunchChoice = pickLunch(
         dishMap,
         dayISO,
         Boolean(isLegumeDay),
         Boolean(legumeLunchAvailable),
-        starters,
-        mains,
-        singleCourses,
+        dayStarters,
+        dayMains,
+        daySingleCourses,
         usedDishes,
       )
 
@@ -487,7 +506,7 @@ export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptio
         dayISO,
         lunchChoice.ingredient,
         new Set(lunchChoice.words),
-        dinnerMains,
+        dayDinnerMains,
         usedDishes,
       )
 
@@ -507,23 +526,25 @@ export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptio
     if (legumeLunchAvailable && !legumeDayISO) {
       continue
     }
+
     const fishLunchOptions = dishIdeas.filter(
       d =>
         d.main_ingredient === 'fish' &&
         (d.meal_type === 'lunch' || d.meal_type === 'both') &&
         (d.category === 'single' || d.category === 'main'),
     )
-    const fishDinnerOptions = dinnerMains.filter(d => d.main_ingredient === 'fish')
+    const fishDinnerOptions = allDinnerMains.filter(d => d.main_ingredient === 'fish')
 
     if (
       !ensureFishDays(
         dishMap,
         menuItems,
         legumeDayISO,
-        starters,
+        allStarters,
         fishLunchOptions,
         fishDinnerOptions,
         usedDishes,
+        weekendDays,
       )
     ) {
       continue
