@@ -3,6 +3,7 @@ export interface DishIdea {
   name: string
   category: 'starter' | 'main' | 'single'
   meal_type: 'lunch' | 'dinner' | 'both'
+  day_type: 'weekday' | 'weekendday' | 'anyday'
   main_ingredient?: 'pasta' | 'meat' | 'fish' | 'egg' | 'legume' | 'vegetable'
   created_at: string
   updated_at: string
