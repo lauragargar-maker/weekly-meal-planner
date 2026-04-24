@@ -51,11 +51,11 @@ export default function MenuListView({ menu, dishIdeas, onUpdateDish }: MenuList
                     <div>
                       <h4 className="font-medium text-primary-700 mb-2">🌅 Lunch</h4>
                       {lunch.single ? (
-                        <p className="text-gray-700 ml-4"><DishEditor value={lunch.single} slot="single" mealType="lunch" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} /></p>
+                        <p className="text-gray-700 ml-4"><DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} /></p>
                       ) : (
                         <ul className="ml-4 space-y-1 text-gray-700">
-                          {lunch.starter && <li>Starter: <DishEditor value={lunch.starter} slot="starter" mealType="lunch" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} /></li>}
-                          {lunch.main && <li>Main: <DishEditor value={lunch.main} slot="main" mealType="lunch" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} /></li>}
+                          {lunch.starter && <li>Starter: <DishEditor value={lunch.starter} slot="starter" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} /></li>}
+                          {lunch.main && <li>Main: <DishEditor value={lunch.main} slot="main" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} /></li>}
                         </ul>
                       )}
                     </div>
@@ -65,7 +65,7 @@ export default function MenuListView({ menu, dishIdeas, onUpdateDish }: MenuList
                     <div>
                       <h4 className="font-medium text-primary-700 mb-2">🌙 Dinner</h4>
                       {dinner.main && (
-                        <p className="text-gray-700 ml-4"><DishEditor value={dinner.main} slot="main" mealType="dinner" dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} /></p>
+                        <p className="text-gray-700 ml-4"><DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} /></p>
                       )}
                     </div>
                   )}
