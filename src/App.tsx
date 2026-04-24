@@ -406,6 +406,16 @@ function App() {
     }
   }, [currentMenu, nextWeekMenu, weekOffset, dishIdeas])
 
+  const handleAddNewDish = useCallback(async (dishData: Omit<DishIdea, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      const { error } = await supabase.from('dish_ideas').insert(dishData)
+      if (error) throw error
+    } catch (err) {
+      console.error('Error adding dish:', err)
+      setError(err instanceof Error ? err.message : 'Failed to add dish')
+    }
+  }, [])
+
   const handleRegenerateMenu = useCallback(async () => {
     if (dishIdeas.length === 0) {
       setError('No dish ideas available. Please add dishes first.')
@@ -518,6 +528,7 @@ function App() {
             menu={displayedMenu}
             dishIdeas={dishIdeas}
             onUpdateDish={updateMenuItem}
+            onAddNewDish={handleAddNewDish}
             weekOffset={weekOffset}
             canAccessNextWeek={canAccessNextWeek()}
             onNavigate={handleWeekNav}
