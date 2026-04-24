@@ -3,17 +3,23 @@ import { supabase } from './lib/supabase'
 import { WeeklyMenu, DishIdea } from './types'
 import MenuAgendaView from './components/MenuAgendaView'
 import { generateWeeklyMenu } from './utils/menuGenerator'
+import { SETTINGS } from './config'
 
 /** Return the Saturday that starts the current week period (Sat–Fri). */
 const getCurrentWeekSaturday = (): Date => {
   const today = new Date()
   const dayOfWeek = today.getDay() // 0=Sun … 6=Sat
-  // How many days back to the most recent Saturday (0 if today is Saturday)
   const daysBack = (dayOfWeek + 1) % 7 // Sat=0, Sun=1, Mon=2, … Fri=6
   const saturday = new Date(today)
   saturday.setDate(today.getDate() - daysBack)
   saturday.setHours(0, 0, 0, 0)
   return saturday
+}
+
+const getNextWeekSaturday = (): Date => {
+  const next = getCurrentWeekSaturday()
+  next.setDate(next.getDate() + 7)
+  return next
 }
 
 const formatLocalDate = (date: Date): string => {
@@ -25,10 +31,19 @@ const formatLocalDate = (date: Date): string => {
 
 function App() {
   const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
+  const [nextWeekMenu, setNextWeekMenu] = useState<WeeklyMenu | null>(null)
+  const [weekOffset, setWeekOffset] = useState<0 | 1>(0)
+  const [isLoadingNextWeek, setIsLoadingNextWeek] = useState(false)
   const [dishIdeas, setDishIdeas] = useState<DishIdea[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const isGeneratingMenuRef = useRef(false)
+
+  const canAccessNextWeek = (): boolean => {
+    const dayOfWeek = new Date().getDay()
+    // Sat(6) starts a new week — only unlock Wed(3)–Fri(5)
+    return dayOfWeek >= SETTINGS.upcomingWeekUnlockDay && dayOfWeek !== 6
+  }
 
   const loadDishIdeas = useCallback(async () => {
     try {
@@ -45,7 +60,11 @@ function App() {
     }
   }, [])
 
-  const generateNewMenu = useCallback(async (weekStart: Date, dishes: DishIdea[]) => {
+  const generateNewMenu = useCallback(async (
+    weekStart: Date,
+    dishes: DishIdea[],
+    setMenu: (menu: WeeklyMenu) => void = setCurrentMenu
+  ) => {
     if (dishes.length === 0) {
       setError('No dish ideas available. Please add dishes first.')
       return
@@ -69,7 +88,6 @@ function App() {
         menu_items: menuItems,
       }
 
-      // Check if menu exists first
       const { data: existingMenu } = await supabase
         .from('weekly_menus')
         .select('id')
@@ -77,7 +95,6 @@ function App() {
         .maybeSingle()
 
       if (existingMenu) {
-        // Update existing menu
         console.log('🔄 Updating existing menu...')
         const { data: updateData, error: updateError } = await supabase
           .from('weekly_menus')
@@ -89,18 +106,13 @@ function App() {
           .eq('week_start', formatLocalDate(weekStart))
           .select()
           .single()
-        
-        if (updateError) {
-          console.error('Error updating menu:', updateError)
-          throw updateError
-        }
-        
-        setCurrentMenu(updateData as WeeklyMenu)
+
+        if (updateError) throw updateError
+        setMenu(updateData as WeeklyMenu)
         setError(null)
         return
       }
 
-      // Insert new menu
       console.log('🆕 Inserting new menu...')
       const { data, error } = await supabase
         .from('weekly_menus')
@@ -109,7 +121,6 @@ function App() {
         .single()
 
       if (error) {
-        // If duplicate key error, try update instead
         if (error.code === '23505') {
           console.log('⚠️ Duplicate detected, updating instead...')
           const { data: updateData, error: updateError } = await supabase
@@ -122,20 +133,19 @@ function App() {
             .eq('week_start', formatLocalDate(weekStart))
             .select()
             .single()
-          
+
           if (updateError) throw updateError
-          setCurrentMenu(updateData as WeeklyMenu)
+          setMenu(updateData as WeeklyMenu)
           setError(null)
           return
         }
         throw error
       }
-      
-      setCurrentMenu(data as WeeklyMenu)
+
+      setMenu(data as WeeklyMenu)
       setError(null)
     } catch (err) {
       console.error('Error generating menu:', err)
-      // Don't set error if it's a duplicate key error (menu already exists)
       if (err instanceof Error && !err.message.includes('duplicate key')) {
         setError(err instanceof Error ? err.message : 'Failed to generate menu')
       }
@@ -155,15 +165,13 @@ function App() {
         .eq('week_start', weekStartFormatted)
         .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') {
-        throw error
-      }
+      if (error && error.code !== 'PGRST116') throw error
 
       if (data) {
         setCurrentMenu(data as WeeklyMenu)
         setError(null)
       } else if (shouldGenerateIfMissing && dishIdeas.length > 0 && !isGeneratingMenuRef.current) {
-        await generateNewMenu(weekStart, dishIdeas)
+        await generateNewMenu(weekStart, dishIdeas, setCurrentMenu)
       }
     } catch (err) {
       console.error('Error loading menu:', err)
@@ -179,19 +187,17 @@ function App() {
     const initializeData = async () => {
       try {
         setLoading(true)
-        
-        // Load dish ideas first
+
         const { data: dishesData, error: dishesError } = await supabase
           .from('dish_ideas')
           .select('*')
           .order('name')
-        
+
         if (dishesError) throw dishesError
         if (mounted) {
           setDishIdeas(dishesData as DishIdea[] || [])
         }
-        
-        // Then load menu (current week, starting Saturday)
+
         if (mounted) {
           const weekStart = getCurrentWeekSaturday()
           const weekStartFormatted = formatLocalDate(weekStart)
@@ -209,9 +215,7 @@ function App() {
             .eq('week_start', weekStartFormatted)
             .maybeSingle()
 
-          if (menuError && menuError.code !== 'PGRST116') {
-            throw menuError
-          }
+          if (menuError && menuError.code !== 'PGRST116') throw menuError
 
           if (menuData) {
             setCurrentMenu(menuData as WeeklyMenu)
@@ -263,29 +267,32 @@ function App() {
     }
 
     initializeData()
-    
+
     menuChannel = supabase
       .channel('weekly_menus_changes')
       .on(
         'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'weekly_menus'
-        },
+        { event: '*', schema: 'public', table: 'weekly_menus' },
         async (payload) => {
-          // Only reload if it's the current week's menu and we're not generating
           if (mounted && !isGeneratingMenuRef.current) {
-            const weekStart = formatLocalDate(getCurrentWeekSaturday())
-            if (payload.new && (payload.new as any).week_start === weekStart) {
+            const currentWeekStart = formatLocalDate(getCurrentWeekSaturday())
+            const nextWeekStart = formatLocalDate(getNextWeekSaturday())
+            const changedWeekStart = (payload.new as any)?.week_start
+
+            if (changedWeekStart === currentWeekStart) {
               const { data } = await supabase
                 .from('weekly_menus')
                 .select('*')
-                .eq('week_start', weekStart)
+                .eq('week_start', currentWeekStart)
                 .maybeSingle()
-              if (data && mounted) {
-                setCurrentMenu(data as WeeklyMenu)
-              }
+              if (data && mounted) setCurrentMenu(data as WeeklyMenu)
+            } else if (changedWeekStart === nextWeekStart) {
+              const { data } = await supabase
+                .from('weekly_menus')
+                .select('*')
+                .eq('week_start', nextWeekStart)
+                .maybeSingle()
+              if (data && mounted) setNextWeekMenu(data as WeeklyMenu)
             }
           }
         }
@@ -298,7 +305,6 @@ function App() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'dish_ideas' },
         async () => {
-          // Reload dishes but don't regenerate menu automatically
           if (mounted) {
             const { data } = await supabase
               .from('dish_ideas')
@@ -317,7 +323,40 @@ function App() {
       if (menuChannel) supabase.removeChannel(menuChannel)
       if (dishChannel) supabase.removeChannel(dishChannel)
     }
-  }, []) // Empty dependency - only run once on mount
+  }, [])
+
+  const handleWeekNav = useCallback(async (direction: -1 | 1) => {
+    const newOffset = (weekOffset + direction) as 0 | 1
+    if (newOffset < 0 || newOffset > 1) return
+
+    setWeekOffset(newOffset)
+
+    if (newOffset === 1 && !nextWeekMenu) {
+      setIsLoadingNextWeek(true)
+      try {
+        const nextWeekStart = getNextWeekSaturday()
+        const { data, error } = await supabase
+          .from('weekly_menus')
+          .select('*')
+          .eq('week_start', formatLocalDate(nextWeekStart))
+          .maybeSingle()
+
+        if (error && error.code !== 'PGRST116') throw error
+
+        if (data) {
+          setNextWeekMenu(data as WeeklyMenu)
+        } else {
+          await generateNewMenu(nextWeekStart, dishIdeas, setNextWeekMenu)
+        }
+      } catch (err) {
+        console.error('Error loading next week menu:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load next week menu')
+        setWeekOffset(0)
+      } finally {
+        setIsLoadingNextWeek(false)
+      }
+    }
+  }, [weekOffset, nextWeekMenu, dishIdeas, generateNewMenu])
 
   const updateMenuItem = useCallback(async (
     dayISO: string,
@@ -326,19 +365,18 @@ function App() {
     newDishName: string,
     selectedCategory: 'starter' | 'main' | 'single'
   ) => {
-    if (!currentMenu) return
+    const activeMenu = weekOffset === 0 ? currentMenu : nextWeekMenu
+    const setActiveMenu = weekOffset === 0 ? setCurrentMenu : setNextWeekMenu
+    if (!activeMenu) return
 
-    const updatedItems = currentMenu.menu_items.map((item) => {
+    const updatedItems = activeMenu.menu_items.map((item) => {
       if (item.day !== dayISO || item.meal_type !== mealType) return item
 
-      // Editing a main slot but selected a single dish → switch to single-course
       if (dishSlot === 'main' && selectedCategory === 'single') {
         return { ...item, single: newDishName, starter: undefined, main: undefined }
       }
 
-      // Editing a single slot but selected a main dish → switch to starter+main
       if (dishSlot === 'single' && selectedCategory === 'main') {
-        // Pick a random compatible starter
         const compatibleStarters = dishIdeas.filter(
           (d) => d.category === 'starter' && (d.meal_type === 'both' || d.meal_type === mealType)
         )
@@ -348,12 +386,11 @@ function App() {
         return { ...item, main: newDishName, starter: randomStarter, single: undefined }
       }
 
-      // Same-category edit: simple replacement
       return { ...item, [dishSlot]: newDishName }
     })
 
-    const updatedMenu = { ...currentMenu, menu_items: updatedItems }
-    setCurrentMenu(updatedMenu)
+    const updatedMenu = { ...activeMenu, menu_items: updatedItems }
+    setActiveMenu(updatedMenu)
 
     try {
       await supabase
@@ -362,12 +399,12 @@ function App() {
           menu_items: updatedItems,
           updated_at: new Date().toISOString()
         })
-        .eq('id', currentMenu.id)
+        .eq('id', activeMenu.id)
     } catch (err) {
       console.error('Error updating menu item:', err)
-      setCurrentMenu(currentMenu)
+      setActiveMenu(activeMenu)
     }
-  }, [currentMenu, dishIdeas])
+  }, [currentMenu, nextWeekMenu, weekOffset, dishIdeas])
 
   const handleRegenerateMenu = useCallback(async () => {
     if (dishIdeas.length === 0) {
@@ -384,35 +421,18 @@ function App() {
       setLoading(true)
       setError(null)
 
-      const weekStart = getCurrentWeekSaturday()
-      const weekStartFormatted = formatLocalDate(weekStart)
-
-      // Try to update existing menu first, if it doesn't exist, generateNewMenu will create it
-      const { data: existingMenu } = await supabase
-        .from('weekly_menus')
-        .select('id')
-        .eq('week_start', weekStartFormatted)
-        .maybeSingle()
-
-      if (existingMenu) {
-        console.log('🔄 Menu exists, regenerating...')
-        // Generate new menu (it will use upsert/update internally)
-        await generateNewMenu(weekStart, dishIdeas)
+      if (weekOffset === 0) {
+        await generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)
       } else {
-        console.log('🆕 No menu exists, generating new one...')
-        // Generate new menu
-        await generateNewMenu(weekStart, dishIdeas)
+        await generateNewMenu(getNextWeekSaturday(), dishIdeas, setNextWeekMenu)
       }
-
-      // Reload the menu
-      await loadCurrentMenu(false)
     } catch (err) {
       console.error('Error regenerating menu:', err)
       setError(err instanceof Error ? err.message : 'Failed to regenerate menu')
     } finally {
       setLoading(false)
     }
-  }, [dishIdeas, generateNewMenu, loadCurrentMenu])
+  }, [weekOffset, dishIdeas, generateNewMenu])
 
   if (loading) {
     return (
@@ -431,12 +451,12 @@ function App() {
         <div className="card max-w-md">
           <h2 className="text-xl font-bold text-red-600 mb-4">Error</h2>
           <p className="text-gray-700 mb-4">{error}</p>
-          <button 
+          <button
             onClick={() => {
               setLoading(true)
               setError(null)
               loadDishIdeas().then(() => loadCurrentMenu(true))
-            }} 
+            }}
             className="btn-primary"
           >
             Retry
@@ -446,13 +466,15 @@ function App() {
     )
   }
 
+  const displayedMenu = weekOffset === 0 ? currentMenu : nextWeekMenu
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <h1 className="text-2xl font-bold text-gray-900">Weekly Meal Planning</h1>
-            {currentMenu && (
+            {displayedMenu && (
               <button
                 onClick={handleRegenerateMenu}
                 className="btn-secondary flex items-center gap-2"
@@ -486,15 +508,25 @@ function App() {
           </div>
         )}
 
-        {currentMenu ? (
-          <MenuAgendaView menu={currentMenu} dishIdeas={dishIdeas} onUpdateDish={updateMenuItem} />
+        {isLoadingNextWeek ? (
+          <div className="card text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading next week's menu...</p>
+          </div>
+        ) : displayedMenu ? (
+          <MenuAgendaView
+            menu={displayedMenu}
+            dishIdeas={dishIdeas}
+            onUpdateDish={updateMenuItem}
+            weekOffset={weekOffset}
+            canAccessNextWeek={canAccessNextWeek()}
+            onNavigate={handleWeekNav}
+          />
         ) : (
           <div className="card text-center">
             <p className="text-gray-600 mb-4">No menu available for this week.</p>
             <button
-              onClick={() => {
-                generateNewMenu(getCurrentWeekSaturday(), dishIdeas)
-              }}
+              onClick={() => generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)}
               className="btn-primary"
             >
               Generate Menu
@@ -507,4 +539,3 @@ function App() {
 }
 
 export default App
-

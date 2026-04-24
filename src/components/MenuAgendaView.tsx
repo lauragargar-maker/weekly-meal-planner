@@ -6,9 +6,12 @@ interface MenuAgendaViewProps {
   menu: WeeklyMenu
   dishIdeas: DishIdea[]
   onUpdateDish: (dayISO: string, mealType: 'lunch' | 'dinner', dishSlot: 'starter' | 'main' | 'single', newDishName: string, selectedCategory: 'starter' | 'main' | 'single') => void
+  weekOffset: 0 | 1
+  canAccessNextWeek: boolean
+  onNavigate: (direction: -1 | 1) => void
 }
 
-export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish }: MenuAgendaViewProps) {
+export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, weekOffset, canAccessNextWeek, onNavigate }: MenuAgendaViewProps) {
   // Group menu items by day
   const itemsByDay = menu.menu_items.reduce((acc, item) => {
     if (!acc[item.day]) {
@@ -79,9 +82,38 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish }: MenuAg
   return (
     <div className="space-y-6">
       <div className="card">
-        <h2 className="text-3xl font-bold mb-8 text-center">
-          Week of {formatDate(menu.week_start)} - {formatDate(menu.week_end)}
-        </h2>
+        <div className="flex items-center justify-center gap-4 mb-8">
+          <button
+            onClick={() => onNavigate(-1)}
+            disabled={weekOffset === 0}
+            className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            aria-label="Go to current week"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+
+          <div className="text-center">
+            <div className="text-sm font-medium text-primary-600 mb-1">
+              {weekOffset === 0 ? 'Current Week' : 'Next Week'}
+            </div>
+            <h2 className="text-3xl font-bold">
+              {formatDate(menu.week_start)} – {formatDate(menu.week_end)}
+            </h2>
+          </div>
+
+          <button
+            onClick={() => onNavigate(1)}
+            disabled={weekOffset === 1 || !canAccessNextWeek}
+            className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            aria-label="Go to next week"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
 
         {/* Desktop layout: 4 days in first row, 3 days in second row */}
         <div className="hidden lg:block space-y-6">
