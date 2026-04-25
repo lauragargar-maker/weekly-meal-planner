@@ -6,9 +6,10 @@ interface MenuListViewProps {
   menu: WeeklyMenu
   dishIdeas: DishIdea[]
   onUpdateDish: (dayISO: string, mealType: 'lunch' | 'dinner', dishSlot: 'starter' | 'main' | 'single', newDishName: string, selectedCategory: 'starter' | 'main' | 'single') => void
+  onAddNewDish: (dishData: Omit<DishIdea, 'id' | 'created_at' | 'updated_at'>) => void
 }
 
-export default function MenuListView({ menu, dishIdeas, onUpdateDish }: MenuListViewProps) {
+export default function MenuListView({ menu, dishIdeas, onUpdateDish, onAddNewDish }: MenuListViewProps) {
   // Group menu items by day
   const itemsByDay = menu.menu_items.reduce((acc, item) => {
     if (!acc[item.day]) {
@@ -51,11 +52,11 @@ export default function MenuListView({ menu, dishIdeas, onUpdateDish }: MenuList
                     <div>
                       <h4 className="font-medium text-primary-700 mb-2">🌅 Lunch</h4>
                       {lunch.single ? (
-                        <p className="text-gray-700 ml-4"><DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} /></p>
+                        <p className="text-gray-700 ml-4"><DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} onAddNewDish={onAddNewDish} /></p>
                       ) : (
                         <ul className="ml-4 space-y-1 text-gray-700">
-                          {lunch.starter && <li>Starter: <DishEditor value={lunch.starter} slot="starter" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} /></li>}
-                          {lunch.main && <li>Main: <DishEditor value={lunch.main} slot="main" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} /></li>}
+                          {lunch.starter && <li>Starter: <DishEditor value={lunch.starter} slot="starter" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} onAddNewDish={onAddNewDish} /></li>}
+                          {lunch.main && <li>Main: <DishEditor value={lunch.main} slot="main" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} onAddNewDish={onAddNewDish} /></li>}
                         </ul>
                       )}
                     </div>
@@ -65,7 +66,7 @@ export default function MenuListView({ menu, dishIdeas, onUpdateDish }: MenuList
                     <div>
                       <h4 className="font-medium text-primary-700 mb-2">🌙 Dinner</h4>
                       {dinner.main && (
-                        <p className="text-gray-700 ml-4"><DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} /></p>
+                        <p className="text-gray-700 ml-4"><DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} onAddNewDish={onAddNewDish} /></p>
                       )}
                     </div>
                   )}
