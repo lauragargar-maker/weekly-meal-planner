@@ -92,7 +92,7 @@ export default function AddDishModal({ slot, mealType, dishIdeas, onClose, onCon
           />
           {isDuplicate && (
             <p className="mt-1 text-sm text-red-600">
-              Ya existe un plato con este nombre — selecciónalo de la lista
+              A dish with this name already exists — select it from the list
             </p>
           )}
         </div>
