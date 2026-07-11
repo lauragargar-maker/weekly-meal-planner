@@ -26,7 +26,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   const fetchHousehold = useCallback(async (userId: string): Promise<Household | null> => {
     const { data, error } = await supabase
       .from('household_members')
-      .select('households(id, name)')
+      .select('households(id, name, join_code)')
       .eq('user_id', userId)
       .maybeSingle()
 

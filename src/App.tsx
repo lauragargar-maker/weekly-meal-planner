@@ -516,6 +516,10 @@ function App({ household }: { household: Household }) {
               <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-gray-500">
                 <span>{household.name}</span>
                 <span aria-hidden="true">·</span>
+                <span title="Share this code so your family can join this household">
+                  Family code: <span className="font-mono">{household.join_code}</span>
+                </span>
+                <span aria-hidden="true">·</span>
                 <button
                   onClick={() => signOut()}
                   className="text-primary-600 hover:text-primary-700 font-medium"

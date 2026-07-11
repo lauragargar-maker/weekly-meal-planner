@@ -38,6 +38,15 @@ The app signs users in with **magic links** (passwordless email), which Supabase
    VALUES ('AMIGOS-2026', 20, NOW() + INTERVAL '90 days');
    ```
 
+   Additional family members don't need a beta invite code: they sign in and pick
+   **"Join my family"** on the onboarding screen, entering the household's **family code**
+   (shown in the app header of anyone already in the household).
+
+   **Email rate limit:** Supabase's built-in mailer only sends a handful of auth emails per
+   hour, which is too low even for one family. Configure custom SMTP (Project Settings >
+   Auth > SMTP Settings — e.g. a free Brevo account or a Gmail app password) and then raise
+   the email rate limit under Authentication > Rate Limits.
+
 3. **Migrating from a single-user install:** the multi-tenant migration moves your existing
    dishes and menus into a household named `Founder household`. Sign in to the app once with
    your email, then attach your login to it:

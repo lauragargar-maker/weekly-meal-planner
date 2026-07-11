@@ -1,6 +1,8 @@
 export interface Household {
   id: string
   name: string
+  /** Short code family members use to join this household. */
+  join_code: string
 }
 
 export interface DishIdea {
