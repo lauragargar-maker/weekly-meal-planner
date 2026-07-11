@@ -1,4 +1,4 @@
-import { WeeklyMenu, DishIdea } from '../types'
+import { WeeklyMenu, DishIdea, NewDishIdea } from '../types'
 import { formatDayName, formatDate } from '../utils/menuGenerator'
 import DishEditor from './DishEditor'
 
@@ -6,7 +6,7 @@ interface MenuAgendaViewProps {
   menu: WeeklyMenu
   dishIdeas: DishIdea[]
   onUpdateDish: (dayISO: string, mealType: 'lunch' | 'dinner', dishSlot: 'starter' | 'main' | 'single', newDishName: string, selectedCategory: 'starter' | 'main' | 'single') => void
-  onAddNewDish: (dishData: Omit<DishIdea, 'id' | 'created_at' | 'updated_at'>) => void
+  onAddNewDish: (dishData: NewDishIdea) => void
   weekOffset: 0 | 1
   canAccessNextWeek: boolean
   onNavigate: (direction: -1 | 1) => void

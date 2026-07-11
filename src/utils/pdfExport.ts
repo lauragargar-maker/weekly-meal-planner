@@ -130,7 +130,7 @@ export function exportMenuToPDF(menu: WeeklyMenu): void {
     }
     
     // Dinner column
-    let dinnerY = yPosition + 5
+    const dinnerY = yPosition + 5
     doc.setFontSize(16) // Doubled from 8
     doc.setFont('helvetica', 'normal')
     if (dinner && dinner.main) {

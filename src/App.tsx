@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './lib/supabase'
-import { WeeklyMenu, DishIdea } from './types'
+import { useAuth } from './lib/auth-context'
+import { WeeklyMenu, DishIdea, NewDishIdea, Household } from './types'
 import MenuAgendaView from './components/MenuAgendaView'
 import { generateWeeklyMenu } from './utils/menuGenerator'
 import { SETTINGS } from './config'
@@ -29,7 +30,9 @@ const formatLocalDate = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
-function App() {
+function App({ household }: { household: Household }) {
+  const { signOut } = useAuth()
+  const householdId = household.id
   const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
   const [nextWeekMenu, setNextWeekMenu] = useState<WeeklyMenu | null>(null)
   const [weekOffset, setWeekOffset] = useState<0 | 1>(0)
@@ -50,6 +53,7 @@ function App() {
       const { data, error } = await supabase
         .from('dish_ideas')
         .select('*')
+        .eq('household_id', householdId)
         .order('name')
 
       if (error) throw error
@@ -58,7 +62,7 @@ function App() {
       console.error('Error loading dish ideas:', err)
       setError(err instanceof Error ? err.message : 'Failed to load dish ideas')
     }
-  }, [])
+  }, [householdId])
 
   const generateNewMenu = useCallback(async (
     weekStart: Date,
@@ -83,6 +87,7 @@ function App() {
       const menuItems = generateWeeklyMenu({ dishIdeas: dishes, weekStart })
 
       const menuData = {
+        household_id: householdId,
         week_start: formatLocalDate(weekStart),
         week_end: formatLocalDate(weekEnd),
         menu_items: menuItems,
@@ -91,6 +96,7 @@ function App() {
       const { data: existingMenu } = await supabase
         .from('weekly_menus')
         .select('id')
+        .eq('household_id', householdId)
         .eq('week_start', formatLocalDate(weekStart))
         .maybeSingle()
 
@@ -103,6 +109,7 @@ function App() {
             menu_items: menuData.menu_items,
             updated_at: new Date().toISOString()
           })
+          .eq('household_id', householdId)
           .eq('week_start', formatLocalDate(weekStart))
           .select()
           .single()
@@ -130,6 +137,7 @@ function App() {
               menu_items: menuData.menu_items,
               updated_at: new Date().toISOString()
             })
+            .eq('household_id', householdId)
             .eq('week_start', formatLocalDate(weekStart))
             .select()
             .single()
@@ -152,7 +160,7 @@ function App() {
     } finally {
       isGeneratingMenuRef.current = false
     }
-  }, [])
+  }, [householdId])
 
   const loadCurrentMenu = useCallback(async (shouldGenerateIfMissing = false) => {
     try {
@@ -162,6 +170,7 @@ function App() {
       const { data, error } = await supabase
         .from('weekly_menus')
         .select('*')
+        .eq('household_id', householdId)
         .eq('week_start', weekStartFormatted)
         .maybeSingle()
 
@@ -177,7 +186,7 @@ function App() {
       console.error('Error loading menu:', err)
       setError(err instanceof Error ? err.message : 'Failed to load menu')
     }
-  }, [dishIdeas, generateNewMenu])
+  }, [householdId, dishIdeas, generateNewMenu])
 
   useEffect(() => {
     let mounted = true
@@ -191,6 +200,7 @@ function App() {
         const { data: dishesData, error: dishesError } = await supabase
           .from('dish_ideas')
           .select('*')
+          .eq('household_id', householdId)
           .order('name')
 
         if (dishesError) throw dishesError
@@ -212,6 +222,7 @@ function App() {
           const { data: menuData, error: menuError } = await supabase
             .from('weekly_menus')
             .select('*')
+            .eq('household_id', householdId)
             .eq('week_start', weekStartFormatted)
             .maybeSingle()
 
@@ -228,6 +239,7 @@ function App() {
               const menuItems = generateWeeklyMenu({ dishIdeas: dishesData as DishIdea[], weekStart })
 
               const newMenuData = {
+                household_id: householdId,
                 week_start: formatLocalDate(weekStart),
                 week_end: formatLocalDate(weekEnd),
                 menu_items: menuItems,
@@ -269,20 +281,26 @@ function App() {
     initializeData()
 
     menuChannel = supabase
-      .channel('weekly_menus_changes')
+      .channel(`weekly_menus_changes_${householdId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'weekly_menus' },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'weekly_menus',
+          filter: `household_id=eq.${householdId}`,
+        },
         async (payload) => {
           if (mounted && !isGeneratingMenuRef.current) {
             const currentWeekStart = formatLocalDate(getCurrentWeekSaturday())
             const nextWeekStart = formatLocalDate(getNextWeekSaturday())
-            const changedWeekStart = (payload.new as any)?.week_start
+            const changedWeekStart = (payload.new as Partial<WeeklyMenu> | null)?.week_start
 
             if (changedWeekStart === currentWeekStart) {
               const { data } = await supabase
                 .from('weekly_menus')
                 .select('*')
+                .eq('household_id', householdId)
                 .eq('week_start', currentWeekStart)
                 .maybeSingle()
               if (data && mounted) setCurrentMenu(data as WeeklyMenu)
@@ -290,6 +308,7 @@ function App() {
               const { data } = await supabase
                 .from('weekly_menus')
                 .select('*')
+                .eq('household_id', householdId)
                 .eq('week_start', nextWeekStart)
                 .maybeSingle()
               if (data && mounted) setNextWeekMenu(data as WeeklyMenu)
@@ -300,15 +319,21 @@ function App() {
       .subscribe()
 
     dishChannel = supabase
-      .channel('dish_ideas_changes')
+      .channel(`dish_ideas_changes_${householdId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'dish_ideas' },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'dish_ideas',
+          filter: `household_id=eq.${householdId}`,
+        },
         async () => {
           if (mounted) {
             const { data } = await supabase
               .from('dish_ideas')
               .select('*')
+              .eq('household_id', householdId)
               .order('name')
             if (data && mounted) {
               setDishIdeas(data as DishIdea[] || [])
@@ -323,7 +348,7 @@ function App() {
       if (menuChannel) supabase.removeChannel(menuChannel)
       if (dishChannel) supabase.removeChannel(dishChannel)
     }
-  }, [])
+  }, [householdId])
 
   const handleWeekNav = useCallback(async (direction: -1 | 1) => {
     const newOffset = (weekOffset + direction) as 0 | 1
@@ -338,6 +363,7 @@ function App() {
         const { data, error } = await supabase
           .from('weekly_menus')
           .select('*')
+          .eq('household_id', householdId)
           .eq('week_start', formatLocalDate(nextWeekStart))
           .maybeSingle()
 
@@ -356,7 +382,7 @@ function App() {
         setIsLoadingNextWeek(false)
       }
     }
-  }, [weekOffset, nextWeekMenu, dishIdeas, generateNewMenu])
+  }, [weekOffset, nextWeekMenu, dishIdeas, generateNewMenu, householdId])
 
   const updateMenuItem = useCallback(async (
     dayISO: string,
@@ -406,15 +432,17 @@ function App() {
     }
   }, [currentMenu, nextWeekMenu, weekOffset, dishIdeas])
 
-  const handleAddNewDish = useCallback(async (dishData: Omit<DishIdea, 'id' | 'created_at' | 'updated_at'>) => {
+  const handleAddNewDish = useCallback(async (dishData: NewDishIdea) => {
     try {
-      const { error } = await supabase.from('dish_ideas').insert(dishData)
+      const { error } = await supabase
+        .from('dish_ideas')
+        .insert({ ...dishData, household_id: householdId })
       if (error) throw error
     } catch (err) {
       console.error('Error adding dish:', err)
       setError(err instanceof Error ? err.message : 'Failed to add dish')
     }
-  }, [])
+  }, [householdId])
 
   const handleRegenerateMenu = useCallback(async () => {
     if (dishIdeas.length === 0) {
@@ -483,7 +511,19 @@ function App() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <h1 className="text-2xl font-bold text-gray-900">Weekly Meal Planning</h1>
+            <div className="text-center sm:text-left">
+              <h1 className="text-2xl font-bold text-gray-900">Weekly Meal Planning</h1>
+              <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-gray-500">
+                <span>{household.name}</span>
+                <span aria-hidden="true">·</span>
+                <button
+                  onClick={() => signOut()}
+                  className="text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  Sign out
+                </button>
+              </div>
+            </div>
             {displayedMenu && (
               <button
                 onClick={handleRegenerateMenu}

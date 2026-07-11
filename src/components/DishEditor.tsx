@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { DishIdea } from '../types'
+import { DishIdea, NewDishIdea } from '../types'
 import AddDishModal from './AddDishModal'
 
 interface DishEditorProps {
@@ -9,7 +9,7 @@ interface DishEditorProps {
   day: string // ISO date string
   dishIdeas: DishIdea[]
   onUpdate: (newDishName: string, selectedCategory: 'starter' | 'main' | 'single') => void
-  onAddNewDish: (dishData: Omit<DishIdea, 'id' | 'created_at' | 'updated_at'>) => void
+  onAddNewDish: (dishData: NewDishIdea) => void
 }
 
 const isWeekendDay = (isoDate: string): boolean => {
@@ -48,7 +48,7 @@ export default function DishEditor({ value, slot, mealType, day, dishIdeas, onUp
     name: string,
     category: 'starter' | 'main' | 'single',
     persist: boolean,
-    dishData?: Omit<DishIdea, 'id' | 'created_at' | 'updated_at'>
+    dishData?: NewDishIdea
   ) => {
     onUpdate(name, category)
     if (persist && dishData) onAddNewDish(dishData)

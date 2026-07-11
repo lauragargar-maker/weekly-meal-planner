@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { DishIdea } from '../types'
+import { DishIdea, NewDishIdea } from '../types'
 
 interface AddDishModalProps {
   slot: 'starter' | 'main' | 'single'
@@ -10,7 +10,7 @@ interface AddDishModalProps {
     name: string,
     category: 'starter' | 'main' | 'single',
     persist: boolean,
-    dishData?: Omit<DishIdea, 'id' | 'created_at' | 'updated_at'>
+    dishData?: NewDishIdea
   ) => void
 }
 

@@ -4,6 +4,7 @@ A modern web application for generating and managing weekly meal plans with Supa
 
 ## Features
 
+- 🔐 **Households**: Passwordless (magic link) sign-in; each household has its own private dish catalog and menus, with invite-code signup
 - 📅 **Weekly Menu Generation**: Automatically generates weekly menus with starter + main or single-course lunches, and main-course dinners
 - 📱 **Visual Agenda View**: Beautiful, responsive calendar-style view of the weekly menu
 - 📋 **List View**: Clean, organized list format for easy reading
@@ -211,22 +212,12 @@ The app supports WhatsApp notifications through various providers:
 3. **MessageBird**
    - Alternative provider
 
-## Admin Features
+## Accounts and Households
 
-To add dish ideas as an admin:
-
-1. Set your user role to 'admin' in Supabase:
-   ```sql
-   UPDATE auth.users 
-   SET raw_user_meta_data = jsonb_set(
-     raw_user_meta_data, 
-     '{role}', 
-     '"admin"'
-   )
-   WHERE id = 'your-user-id';
-   ```
-
-2. Use the Supabase dashboard or API to insert dish ideas
+Users sign in with a magic link (passwordless email). A new user redeems an **invite code**
+to create their household — the private space that owns their dish catalog and weekly menus.
+Row Level Security restricts every read and write to the member's own household.
+See `SETUP.md` for creating invite codes and migrating a single-user install.
 
 ## Building for Production
 
