@@ -8,6 +8,8 @@ export interface AuthContextValue {
   session: Session | null
   /** The signed-in user's household; null until onboarding completes. */
   household: Household | null
+  /** Set when the household lookup itself failed (as opposed to the user having none). */
+  householdError: string | null
   signInWithEmail: (email: string) => Promise<void>
   signOut: () => Promise<void>
   /** Re-fetch the household (e.g. right after onboarding creates it). */

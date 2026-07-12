@@ -8,6 +8,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [sessionResolved, setSessionResolved] = useState(false)
   const [household, setHousehold] = useState<Household | null>(null)
+  const [householdError, setHouseholdError] = useState<string | null>(null)
   const [householdResolved, setHouseholdResolved] = useState(false)
 
   useEffect(() => {
@@ -31,9 +32,13 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle()
 
     if (error) {
+      // A failed lookup is not the same as having no household — surface it
+      // instead of routing the user into onboarding.
       console.error('Error loading household:', error)
+      setHouseholdError(error.message)
       return null
     }
+    setHouseholdError(null)
     return (data?.households as unknown as Household) ?? null
   }, [])
 
@@ -86,11 +91,12 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       loading: !sessionResolved || !householdResolved,
       session,
       household,
+      householdError,
       signInWithEmail,
       signOut,
       refreshHousehold,
     }),
-    [sessionResolved, householdResolved, session, household, signInWithEmail, signOut, refreshHousehold]
+    [sessionResolved, householdResolved, session, household, householdError, signInWithEmail, signOut, refreshHousehold]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
