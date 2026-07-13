@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth-context'
+import { translateError } from '../lib/errorMessages'
 
 export default function LoginScreen() {
   const { signInWithEmail } = useAuth()
@@ -20,7 +21,9 @@ export default function LoginScreen() {
       setSent(true)
     } catch (err) {
       console.error('Error sending magic link:', err)
-      setError(err instanceof Error ? err.message : 'Failed to send the sign-in link')
+      setError(
+        translateError(err instanceof Error ? err.message : '', 'No se pudo enviar el enlace de acceso')
+      )
     } finally {
       setSending(false)
     }
@@ -29,25 +32,26 @@ export default function LoginScreen() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="card w-full max-w-md">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Weekly Meal Planning</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Menú Semanal</h1>
 
         {sent ? (
           <div>
             <p className="text-gray-700 mb-4">
-              We sent a sign-in link to <span className="font-medium">{email.trim()}</span>.
-              Open it on this device to continue.
+              Te hemos enviado un enlace de acceso a{' '}
+              <span className="font-medium">{email.trim()}</span>. Ábrelo en este dispositivo para
+              continuar.
             </p>
             <button
               onClick={() => setSent(false)}
               className="text-sm text-primary-600 hover:text-primary-700 font-medium"
             >
-              Use a different email
+              Usar otro email
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <p className="text-gray-600 mb-6">
-              Sign in with your email — no password needed, we'll send you a link.
+              Entra con tu email: sin contraseñas, te enviamos un enlace de acceso.
             </p>
             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="login-email">
               Email
@@ -59,11 +63,11 @@ export default function LoginScreen() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 mb-4"
-              placeholder="you@example.com"
+              placeholder="tu@email.com"
             />
             {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
             <button type="submit" disabled={sending} className="btn-primary w-full">
-              {sending ? 'Sending link...' : 'Send sign-in link'}
+              {sending ? 'Enviando enlace...' : 'Enviarme el enlace de acceso'}
             </button>
           </form>
         )}

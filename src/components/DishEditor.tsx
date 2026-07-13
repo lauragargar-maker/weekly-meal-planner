@@ -12,6 +12,12 @@ interface DishEditorProps {
   onAddNewDish: (dishData: NewDishIdea) => void
 }
 
+const CATEGORY_LABELS: Record<DishIdea['category'], string> = {
+  starter: 'primero',
+  main: 'segundo',
+  single: 'plato único',
+}
+
 const isWeekendDay = (isoDate: string): boolean => {
   const d = new Date(isoDate).getDay()
   return d === 0 || d === 6
@@ -88,10 +94,10 @@ export default function DishEditor({ value, slot, mealType, day, dishIdeas, onUp
         >
           {compatibleDishes.map((dish) => (
             <option key={dish.id} value={dish.name}>
-              {dish.name}{dish.category !== slot ? ` (${dish.category})` : ''}
+              {dish.name}{dish.category !== slot ? ` (${CATEGORY_LABELS[dish.category]})` : ''}
             </option>
           ))}
-          <option value="__add_new__">+ Add new dish...</option>
+          <option value="__add_new__">+ Añadir plato nuevo...</option>
         </select>
       ) : !showAddModal ? (
         <span className="inline-flex items-center gap-1 group">
@@ -99,8 +105,8 @@ export default function DishEditor({ value, slot, mealType, day, dishIdeas, onUp
           <button
             onClick={() => setEditing(true)}
             className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-primary-600 p-0.5"
-            aria-label={`Edit ${value}`}
-            title="Edit dish"
+            aria-label={`Editar ${value}`}
+            title="Editar plato"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />

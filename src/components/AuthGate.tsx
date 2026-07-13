@@ -12,7 +12,7 @@ export default function AuthGate() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600">Cargando...</p>
         </div>
       </div>
     )
@@ -24,17 +24,17 @@ export default function AuthGate() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="card max-w-md">
-          <h2 className="text-xl font-bold text-red-600 mb-4">Could not load your household</h2>
+          <h2 className="text-xl font-bold text-red-600 mb-4">No se pudo cargar tu hogar</h2>
           <p className="text-gray-700 mb-4">{householdError}</p>
           <div className="flex gap-3">
             <button onClick={() => refreshHousehold()} className="btn-primary">
-              Retry
+              Reintentar
             </button>
             <button
               onClick={() => signOut()}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
             >
-              Sign out
+              Salir
             </button>
           </div>
         </div>

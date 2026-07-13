@@ -3,7 +3,10 @@ import { supabase } from './lib/supabase'
 import { useAuth } from './lib/auth-context'
 import { WeeklyMenu, DishIdea, NewDishIdea, Household } from './types'
 import MenuAgendaView from './components/MenuAgendaView'
+import CatalogChecklist from './components/CatalogChecklist'
 import { generateWeeklyMenu } from './utils/menuGenerator'
+import { isCatalogReady } from './utils/catalogCheck'
+import { STARTER_CATALOG } from './data/starterCatalog'
 import { SETTINGS } from './config'
 
 /** Return the Saturday that starts the current week period (Sat–Fri). */
@@ -60,7 +63,7 @@ function App({ household }: { household: Household }) {
       setDishIdeas(data as DishIdea[] || [])
     } catch (err) {
       console.error('Error loading dish ideas:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load dish ideas')
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar los platos')
     }
   }, [householdId])
 
@@ -70,7 +73,7 @@ function App({ household }: { household: Household }) {
     setMenu: (menu: WeeklyMenu) => void = setCurrentMenu
   ) => {
     if (dishes.length === 0) {
-      setError('No dish ideas available. Please add dishes first.')
+      setError('No hay platos en el catálogo. Añade platos primero.')
       return
     }
 
@@ -155,7 +158,7 @@ function App({ household }: { household: Household }) {
     } catch (err) {
       console.error('Error generating menu:', err)
       if (err instanceof Error && !err.message.includes('duplicate key')) {
-        setError(err instanceof Error ? err.message : 'Failed to generate menu')
+        setError(err instanceof Error ? err.message : 'No se pudo generar el menú')
       }
     } finally {
       isGeneratingMenuRef.current = false
@@ -184,7 +187,7 @@ function App({ household }: { household: Household }) {
       }
     } catch (err) {
       console.error('Error loading menu:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load menu')
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el menú')
     }
   }, [householdId, dishIdeas, generateNewMenu])
 
@@ -269,7 +272,7 @@ function App({ household }: { household: Household }) {
         }
       } catch (err) {
         if (mounted) {
-          setError(err instanceof Error ? err.message : 'Failed to load data')
+          setError(err instanceof Error ? err.message : 'No se pudieron cargar los datos')
         }
       } finally {
         if (mounted) {
@@ -376,7 +379,7 @@ function App({ household }: { household: Household }) {
         }
       } catch (err) {
         console.error('Error loading next week menu:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load next week menu')
+        setError(err instanceof Error ? err.message : 'No se pudo cargar el menú de la próxima semana')
         setWeekOffset(0)
       } finally {
         setIsLoadingNextWeek(false)
@@ -440,13 +443,30 @@ function App({ household }: { household: Household }) {
       if (error) throw error
     } catch (err) {
       console.error('Error adding dish:', err)
-      setError(err instanceof Error ? err.message : 'Failed to add dish')
+      setError(err instanceof Error ? err.message : 'No se pudo añadir el plato')
     }
   }, [householdId])
 
+  const handleSeedCatalog = useCallback(async () => {
+    // Don't duplicate dishes the household already has.
+    const existingNames = new Set(dishIdeas.map((d) => d.name.toLowerCase()))
+    const missing = STARTER_CATALOG.filter((d) => !existingNames.has(d.name.toLowerCase()))
+    if (missing.length === 0) return
+    try {
+      const { error } = await supabase
+        .from('dish_ideas')
+        .insert(missing.map((dish) => ({ ...dish, household_id: householdId })))
+      if (error) throw error
+      await loadDishIdeas()
+    } catch (err) {
+      console.error('Error seeding starter catalog:', err)
+      setError('No se pudo añadir el catálogo sugerido')
+    }
+  }, [dishIdeas, householdId, loadDishIdeas])
+
   const handleRegenerateMenu = useCallback(async () => {
     if (dishIdeas.length === 0) {
-      setError('No dish ideas available. Please add dishes first.')
+      setError('No hay platos en el catálogo. Añade platos primero.')
       return
     }
 
@@ -466,7 +486,7 @@ function App({ household }: { household: Household }) {
       }
     } catch (err) {
       console.error('Error regenerating menu:', err)
-      setError(err instanceof Error ? err.message : 'Failed to regenerate menu')
+      setError(err instanceof Error ? err.message : 'No se pudo regenerar el menú')
     } finally {
       setLoading(false)
     }
@@ -477,7 +497,7 @@ function App({ household }: { household: Household }) {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600">Cargando...</p>
         </div>
       </div>
     )
@@ -497,7 +517,7 @@ function App({ household }: { household: Household }) {
             }}
             className="btn-primary"
           >
-            Retry
+            Reintentar
           </button>
         </div>
       </div>
@@ -512,19 +532,19 @@ function App({ household }: { household: Household }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-center sm:text-left">
-              <h1 className="text-2xl font-bold text-gray-900">Weekly Meal Planning</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Menú Semanal</h1>
               <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-gray-500">
                 <span>{household.name}</span>
                 <span aria-hidden="true">·</span>
-                <span title="Share this code so your family can join this household">
-                  Family code: <span className="font-mono">{household.join_code}</span>
+                <span title="Comparte este código para que tu familia se una a este hogar">
+                  Código familiar: <span className="font-mono">{household.join_code}</span>
                 </span>
                 <span aria-hidden="true">·</span>
                 <button
                   onClick={() => signOut()}
                   className="text-primary-600 hover:text-primary-700 font-medium"
                 >
-                  Sign out
+                  Salir
                 </button>
               </div>
             </div>
@@ -532,7 +552,7 @@ function App({ household }: { household: Household }) {
               <button
                 onClick={handleRegenerateMenu}
                 className="btn-secondary flex items-center gap-2"
-                aria-label="Regenerate Menu"
+                aria-label="Regenerar menú"
                 disabled={loading}
               >
                 <svg
@@ -548,7 +568,7 @@ function App({ household }: { household: Household }) {
                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   />
                 </svg>
-                {loading ? 'Regenerating...' : 'Regenerate Menu'}
+                {loading ? 'Regenerando...' : 'Regenerar menú'}
               </button>
             )}
           </div>
@@ -565,7 +585,7 @@ function App({ household }: { household: Household }) {
         {isLoadingNextWeek ? (
           <div className="card text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading next week's menu...</p>
+            <p className="mt-4 text-gray-600">Cargando el menú de la próxima semana...</p>
           </div>
         ) : displayedMenu ? (
           <MenuAgendaView
@@ -578,14 +598,24 @@ function App({ household }: { household: Household }) {
             onNavigate={handleWeekNav}
           />
         ) : (
-          <div className="card text-center">
-            <p className="text-gray-600 mb-4">No menu available for this week.</p>
-            <button
-              onClick={() => generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)}
-              className="btn-primary"
-            >
-              Generate Menu
-            </button>
+          <div className="card text-center space-y-4">
+            <p className="text-gray-600">Todavía no hay menú para esta semana.</p>
+            {!isCatalogReady(dishIdeas) && (
+              <>
+                <CatalogChecklist dishIdeas={dishIdeas} />
+                <button onClick={handleSeedCatalog} className="btn-secondary">
+                  Añadir el catálogo de platos sugerido
+                </button>
+              </>
+            )}
+            <div>
+              <button
+                onClick={() => generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)}
+                className="btn-primary"
+              >
+                Generar menú
+              </button>
+            </div>
           </div>
         )}
       </main>
