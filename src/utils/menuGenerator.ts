@@ -567,7 +567,7 @@ export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptio
  * Week starts on Saturday (day 6)
  */
 export function formatDayName(date: string): string {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
   const day = new Date(date).getDay()
   return days[day]
 }
@@ -576,7 +576,7 @@ export function formatDayName(date: string): string {
  * Formats a date to display as short date
  */
 export function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return new Date(date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
 }
 
 

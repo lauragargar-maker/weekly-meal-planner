@@ -18,11 +18,47 @@ pnpm install
 2. Go to **SQL Editor** in your Supabase dashboard
 3. Copy and paste the contents of `supabase/schema.sql` into the SQL editor
 4. Click **Run** to execute the SQL script
-5. This will create:
-   - `dish_ideas` table with sample data
-   - `weekly_menus` table
-   - Necessary indexes and triggers
-   - Row Level Security policies
+5. Run each script in `supabase/migrations/` in filename (date) order the same way
+6. Together these create:
+   - `dish_ideas` and `weekly_menus` tables (owned per household)
+   - `households`, `household_members`, and `invite_codes` tables
+   - The `redeem_invite_and_create_household` signup function
+   - Necessary indexes, triggers, and per-household Row Level Security policies
+
+### 2b. Authentication and Invite Codes
+
+The app signs users in with **magic links** (passwordless email), which Supabase Auth provides out of the box.
+
+1. In **Authentication > URL Configuration**, set the Site URL to where the app runs
+   (`http://localhost:5173` for development, your production URL when deployed).
+2. New users must redeem an invite code to create their household. Create codes in the SQL editor:
+
+   ```sql
+   INSERT INTO invite_codes (code, max_uses, expires_at)
+   VALUES ('AMIGOS-2026', 20, NOW() + INTERVAL '90 days');
+   ```
+
+   Additional family members don't need a beta invite code: they sign in and pick
+   **"Join my family"** on the onboarding screen, entering the household's **family code**
+   (shown in the app header of anyone already in the household).
+
+   **Email rate limit:** Supabase's built-in mailer only sends a handful of auth emails per
+   hour, which is too low even for one family. Configure custom SMTP (Project Settings >
+   Auth > SMTP Settings — e.g. a free Brevo account or a Gmail app password) and then raise
+   the email rate limit under Authentication > Rate Limits.
+
+3. **Migrating from a single-user install:** the multi-tenant migration moves your existing
+   dishes and menus into a household named `Founder household`. Sign in to the app once with
+   your email, then attach your login to it:
+
+   ```sql
+   INSERT INTO household_members (user_id, household_id, role)
+   SELECT u.id, h.id, 'owner'
+   FROM auth.users u, households h
+   WHERE u.email = 'you@example.com'
+     AND h.name = 'Founder household'
+   ON CONFLICT (user_id) DO NOTHING;
+   ```
 
 ### 3. Configure Environment Variables
 
@@ -53,37 +89,26 @@ pnpm dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-## Adding Dish Ideas (Admin)
+## Adding Dish Ideas
 
-To add or modify dish ideas, you need admin privileges:
+Signed-in users manage their own household's dishes directly in the app (dish editor and
+"add new dish" flows). To bulk-load dishes for a household via SQL instead:
 
-1. **Set your user role to admin** in Supabase:
+```sql
+INSERT INTO dish_ideas (household_id, name, category, meal_type) VALUES
+  ('household-uuid-here', 'Dish Name', 'starter', 'lunch'),
+  ('household-uuid-here', 'Another Dish', 'main', 'both'),
+  ('household-uuid-here', 'Single Course Meal', 'single', 'lunch');
+```
 
-   ```sql
-   -- First, create a user in Supabase Auth if you haven't already
-   -- Then update the user's role:
-   
-   UPDATE auth.users 
-   SET raw_user_meta_data = jsonb_set(
-     COALESCE(raw_user_meta_data, '{}'::jsonb), 
-     '{role}', 
-     '"admin"'
-   )
-   WHERE id = 'your-user-id-here';
-   ```
-
-2. **Insert dish ideas** via SQL:
-
-   ```sql
-   INSERT INTO dish_ideas (name, category, meal_type) VALUES
-     ('Dish Name', 'starter', 'lunch'),
-     ('Another Dish', 'main', 'both'),
-     ('Single Course Meal', 'single', 'lunch');
-   ```
-
-   Or use the Supabase dashboard's Table Editor.
+Find the household UUID in the `households` table.
 
 ## Setting Up Edge Functions (Optional)
+
+> **Note:** the edge functions predate multi-tenancy. They generate/send a single global
+> menu and will not work against the per-household schema without being updated to take a
+> household context and use the service role key. Skip them for now; scheduled generation
+> and notifications are planned as a later phase.
 
 ### Prerequisites
 

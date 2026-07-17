@@ -1,4 +1,4 @@
-import { WeeklyMenu, DishIdea } from '../types'
+import { WeeklyMenu, DishIdea, NewDishIdea } from '../types'
 import { formatDayName, formatDate } from '../utils/menuGenerator'
 import DishEditor from './DishEditor'
 
@@ -6,7 +6,7 @@ interface MenuAgendaViewProps {
   menu: WeeklyMenu
   dishIdeas: DishIdea[]
   onUpdateDish: (dayISO: string, mealType: 'lunch' | 'dinner', dishSlot: 'starter' | 'main' | 'single', newDishName: string, selectedCategory: 'starter' | 'main' | 'single') => void
-  onAddNewDish: (dishData: Omit<DishIdea, 'id' | 'created_at' | 'updated_at'>) => void
+  onAddNewDish: (dishData: NewDishIdea) => void
   weekOffset: 0 | 1
   canAccessNextWeek: boolean
   onNavigate: (direction: -1 | 1) => void
@@ -40,7 +40,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
 
   const renderLunch = (day: string, lunch: typeof menu.menu_items[0]) => (
     <div className="bg-white rounded p-4 border-l-4 border-primary-500">
-      <h4 className="text-lg font-semibold text-primary-700 mb-2">🌅 Lunch</h4>
+      <h4 className="text-lg font-semibold text-primary-700 mb-2">🌅 Comida</h4>
       {lunch.single ? (
         <p className="text-lg text-gray-700"><DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} onAddNewDish={onAddNewDish} /></p>
       ) : (
@@ -54,7 +54,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
 
   const renderDinner = (day: string, dinner: typeof menu.menu_items[0]) => (
     <div className="bg-white rounded p-4 border-l-4 border-primary-600">
-      <h4 className="text-lg font-semibold text-primary-700 mb-2">🌙 Dinner</h4>
+      <h4 className="text-lg font-semibold text-primary-700 mb-2">🌙 Cena</h4>
       {dinner.main && (
         <p className="text-lg text-gray-700"><DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} onAddNewDish={onAddNewDish} /></p>
       )}
@@ -88,7 +88,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
             onClick={() => onNavigate(-1)}
             disabled={weekOffset === 0}
             className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label="Go to current week"
+            aria-label="Ir a la semana actual"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -97,7 +97,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
 
           <div className="text-center">
             <div className="text-sm font-medium text-primary-600 mb-1">
-              {weekOffset === 0 ? 'Current Week' : 'Next Week'}
+              {weekOffset === 0 ? 'Semana actual' : 'Próxima semana'}
             </div>
             <h2 className="text-3xl font-bold">
               {formatDate(menu.week_start)} – {formatDate(menu.week_end)}
@@ -108,7 +108,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
             onClick={() => onNavigate(1)}
             disabled={weekOffset === 1 || !canAccessNextWeek}
             className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label="Go to next week"
+            aria-label="Ir a la próxima semana"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -154,7 +154,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
                 <div className="space-y-3">
                   {lunch && (
                     <div className="bg-white rounded p-3 border-l-4 border-primary-500">
-                      <h4 className="text-base font-semibold text-primary-700 mb-1">🌅 Lunch</h4>
+                      <h4 className="text-base font-semibold text-primary-700 mb-1">🌅 Comida</h4>
                       {lunch.single ? (
                         <p className="text-base text-gray-700"><DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} onAddNewDish={onAddNewDish} /></p>
                       ) : (
@@ -168,7 +168,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
 
                   {dinner && (
                     <div className="bg-white rounded p-3 border-l-4 border-primary-600">
-                      <h4 className="text-base font-semibold text-primary-700 mb-1">🌙 Dinner</h4>
+                      <h4 className="text-base font-semibold text-primary-700 mb-1">🌙 Cena</h4>
                       {dinner.main && (
                         <p className="text-base text-gray-700"><DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} onAddNewDish={onAddNewDish} /></p>
                       )}
