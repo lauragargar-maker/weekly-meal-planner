@@ -4,10 +4,12 @@ import { useAuth } from './lib/auth-context'
 import { WeeklyMenu, DishIdea, NewDishIdea, Household } from './types'
 import MenuAgendaView from './components/MenuAgendaView'
 import CatalogChecklist from './components/CatalogChecklist'
+import FeedbackButton from './components/FeedbackButton'
 import { generateWeeklyMenu } from './utils/menuGenerator'
 import { isCatalogReady } from './utils/catalogCheck'
 import { STARTER_CATALOG } from './data/starterCatalog'
 import { SETTINGS } from './config'
+import { identifyHousehold, trackEvent } from './lib/analytics'
 
 /** Return the Saturday that starts the current week period (Sat–Fri). */
 const getCurrentWeekSaturday = (): Date => {
@@ -34,7 +36,7 @@ const formatLocalDate = (date: Date): string => {
 }
 
 function App({ household }: { household: Household }) {
-  const { signOut } = useAuth()
+  const { signOut, session } = useAuth()
   const householdId = household.id
   const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
   const [nextWeekMenu, setNextWeekMenu] = useState<WeeklyMenu | null>(null)
@@ -44,6 +46,10 @@ function App({ household }: { household: Household }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const isGeneratingMenuRef = useRef(false)
+
+  useEffect(() => {
+    identifyHousehold(householdId)
+  }, [householdId])
 
   const canAccessNextWeek = (): boolean => {
     const dayOfWeek = new Date().getDay()
@@ -155,6 +161,7 @@ function App({ household }: { household: Household }) {
 
       setMenu(data as WeeklyMenu)
       setError(null)
+      trackEvent('menu_generated', { week_start: menuData.week_start })
     } catch (err) {
       console.error('Error generating menu:', err)
       if (err instanceof Error && !err.message.includes('duplicate key')) {
@@ -260,6 +267,7 @@ function App({ household }: { household: Household }) {
 
               if (insertedMenu && mounted) {
                 setCurrentMenu(insertedMenu as WeeklyMenu)
+                trackEvent('menu_generated', { week_start: newMenuData.week_start })
               }
             } catch (err) {
               console.error('Error generating menu:', err)
@@ -360,6 +368,7 @@ function App({ household }: { household: Household }) {
     setWeekOffset(newOffset)
 
     if (newOffset === 1 && !nextWeekMenu) {
+      trackEvent('next_week_menu_viewed')
       setIsLoadingNextWeek(true)
       try {
         const nextWeekStart = getNextWeekSaturday()
@@ -429,6 +438,11 @@ function App({ household }: { household: Household }) {
           updated_at: new Date().toISOString()
         })
         .eq('id', activeMenu.id)
+      trackEvent('menu_item_edited', {
+        meal_type: mealType,
+        dish_slot: dishSlot,
+        selected_category: selectedCategory,
+      })
     } catch (err) {
       console.error('Error updating menu item:', err)
       setActiveMenu(activeMenu)
@@ -441,6 +455,7 @@ function App({ household }: { household: Household }) {
         .from('dish_ideas')
         .insert({ ...dishData, household_id: householdId })
       if (error) throw error
+      trackEvent('dish_added', { category: dishData.category })
     } catch (err) {
       console.error('Error adding dish:', err)
       setError(err instanceof Error ? err.message : 'No se pudo añadir el plato')
@@ -458,6 +473,7 @@ function App({ household }: { household: Household }) {
         .insert(missing.map((dish) => ({ ...dish, household_id: householdId })))
       if (error) throw error
       await loadDishIdeas()
+      trackEvent('catalog_seeded', { dish_count: missing.length })
     } catch (err) {
       console.error('Error seeding starter catalog:', err)
       setError('No se pudo añadir el catálogo sugerido')
@@ -566,6 +582,8 @@ function App({ household }: { household: Household }) {
           </div>
         )}
       </main>
+
+      {session?.user && <FeedbackButton householdId={household.id} userId={session.user.id} />}
     </div>
   )
 }

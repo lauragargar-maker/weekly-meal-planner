@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth-context'
 import { translateError } from '../lib/errorMessages'
 import { STARTER_CATALOG } from '../data/starterCatalog'
+import { trackEvent } from '../lib/analytics'
 
 type Mode = 'create' | 'join'
 
@@ -45,15 +46,21 @@ export default function OnboardingScreen() {
           // The household exists either way; dishes can always be added by hand.
           if (seedError) console.error('Error seeding starter catalog:', seedError)
         }
+        trackEvent('household_created', { seeded_catalog: seedCatalog })
       } else {
         const { error: rpcError } = await supabase.rpc('join_household', {
           family_code: familyCode.trim(),
         })
         if (rpcError) throw rpcError
+        trackEvent('household_joined')
       }
       await refreshHousehold()
     } catch (err) {
       console.error('Error setting up household:', err)
+      trackEvent('household_setup_failed', {
+        mode,
+        reason: err instanceof Error ? err.message : 'unknown',
+      })
       setError(
         translateError(err instanceof Error ? err.message : '', 'No se pudo configurar tu hogar')
       )
