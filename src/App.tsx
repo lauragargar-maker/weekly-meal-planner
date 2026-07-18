@@ -277,7 +277,7 @@ function App() {
           if (mounted && !isGeneratingMenuRef.current) {
             const currentWeekStart = formatLocalDate(getCurrentWeekSaturday())
             const nextWeekStart = formatLocalDate(getNextWeekSaturday())
-            const changedWeekStart = (payload.new as any)?.week_start
+            const changedWeekStart = (payload.new as Partial<WeeklyMenu>)?.week_start
 
             if (changedWeekStart === currentWeekStart) {
               const { data } = await supabase

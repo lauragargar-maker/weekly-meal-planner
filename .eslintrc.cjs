@@ -6,7 +6,8 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react-hooks/recommended',
   ],
-  ignorePatterns: ['dist', '.eslintrc.cjs'],
+  // supabase/functions are Deno edge functions; this config can't parse them
+  ignorePatterns: ['dist', '.eslintrc.cjs', 'supabase/functions'],
   parser: '@typescript-eslint/parser',
   plugins: ['react-refresh'],
   rules: {
