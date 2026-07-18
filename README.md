@@ -7,8 +7,6 @@ A modern web application for generating and managing weekly meal plans with Supa
 - 🔐 **Households**: Passwordless (magic link) sign-in; each household has its own private dish catalog and menus, with invite-code signup
 - 📅 **Weekly Menu Generation**: Automatically generates weekly menus with starter + main or single-course lunches, and main-course dinners
 - 📱 **Visual Agenda View**: Beautiful, responsive calendar-style view of the weekly menu
-- 📋 **List View**: Clean, organized list format for easy reading
-- 📄 **PDF Export**: Download the weekly menu as a PDF
 - 🔔 **WhatsApp Notifications**: Automatically send weekly menus to designated contacts every Friday
 - 🔄 **Real-time Updates**: Menu updates in real-time using Supabase subscriptions
 - 📱 **Mobile-First Design**: Fully responsive, accessible interface
@@ -18,7 +16,6 @@ A modern web application for generating and managing weekly meal plans with Supa
 - **Frontend**: React 18 + TypeScript + Vite
 - **Styling**: Tailwind CSS
 - **Backend**: Supabase (PostgreSQL + Edge Functions)
-- **PDF Generation**: jsPDF
 - **Date Handling**: date-fns
 
 ## Prerequisites
@@ -237,16 +234,13 @@ The production build will be in the `dist` directory.
 .
 ├── src/
 │   ├── components/          # React components
-│   │   ├── MenuListView.tsx
-│   │   ├── MenuAgendaView.tsx
-│   │   └── ViewToggle.tsx
+│   │   └── MenuAgendaView.tsx
 │   ├── lib/
 │   │   └── supabase.ts      # Supabase client
 │   ├── types/
 │   │   └── index.ts         # TypeScript types
 │   ├── utils/
-│   │   ├── menuGenerator.ts # Menu generation logic
-│   │   └── pdfExport.ts     # PDF export functionality
+│   │   └── menuGenerator.ts # Menu generation logic
 │   ├── App.tsx              # Main app component
 │   ├── main.tsx             # Entry point
 │   └── index.css            # Global styles

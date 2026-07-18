@@ -464,34 +464,6 @@ function App({ household }: { household: Household }) {
     }
   }, [dishIdeas, householdId, loadDishIdeas])
 
-  const handleRegenerateMenu = useCallback(async () => {
-    if (dishIdeas.length === 0) {
-      setError('No hay platos en el catálogo. Añade platos primero.')
-      return
-    }
-
-    if (isGeneratingMenuRef.current) {
-      console.log('Menu generation already in progress, skipping...')
-      return
-    }
-
-    try {
-      setLoading(true)
-      setError(null)
-
-      if (weekOffset === 0) {
-        await generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)
-      } else {
-        await generateNewMenu(getNextWeekSaturday(), dishIdeas, setNextWeekMenu)
-      }
-    } catch (err) {
-      console.error('Error regenerating menu:', err)
-      setError(err instanceof Error ? err.message : 'No se pudo regenerar el menú')
-    } finally {
-      setLoading(false)
-    }
-  }, [weekOffset, dishIdeas, generateNewMenu])
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -530,47 +502,22 @@ function App({ household }: { household: Household }) {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="text-center sm:text-left">
-              <h1 className="text-2xl font-bold text-gray-900">Menú Semanal</h1>
-              <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-gray-500">
-                <span>{household.name}</span>
-                <span aria-hidden="true">·</span>
-                <span title="Comparte este código para que tu familia se una a este hogar">
-                  Código familiar: <span className="font-mono">{household.join_code}</span>
-                </span>
-                <span aria-hidden="true">·</span>
-                <button
-                  onClick={() => signOut()}
-                  className="text-primary-600 hover:text-primary-700 font-medium"
-                >
-                  Salir
-                </button>
-              </div>
-            </div>
-            {displayedMenu && (
+          <div className="text-center sm:text-left">
+            <h1 className="text-2xl font-bold text-gray-900">Menú Semanal</h1>
+            <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-gray-500">
+              <span>{household.name}</span>
+              <span aria-hidden="true">·</span>
+              <span title="Comparte este código para que tu familia se una a este hogar">
+                Código familiar: <span className="font-mono">{household.join_code}</span>
+              </span>
+              <span aria-hidden="true">·</span>
               <button
-                onClick={handleRegenerateMenu}
-                className="btn-secondary flex items-center gap-2"
-                aria-label="Regenerar menú"
-                disabled={loading}
+                onClick={() => signOut()}
+                className="text-primary-600 hover:text-primary-700 font-medium"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                {loading ? 'Regenerando...' : 'Regenerar menú'}
+                Salir
               </button>
-            )}
+            </div>
           </div>
         </div>
       </header>
