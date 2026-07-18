@@ -1,5 +1,13 @@
+export interface Household {
+  id: string
+  name: string
+  /** Short code family members use to join this household. */
+  join_code: string
+}
+
 export interface DishIdea {
   id: string
+  household_id: string
   name: string
   category: 'starter' | 'main' | 'single'
   meal_type: 'lunch' | 'dinner' | 'both'
@@ -9,8 +17,12 @@ export interface DishIdea {
   updated_at: string
 }
 
+// Shape used by forms that create a dish; ownership and timestamps are set by the app/DB.
+export type NewDishIdea = Omit<DishIdea, 'id' | 'household_id' | 'created_at' | 'updated_at'>
+
 export interface WeeklyMenu {
   id: string
+  household_id: string
   week_start: string
   week_end: string
   menu_items: MenuItem[]
@@ -27,4 +39,3 @@ export interface MenuItem {
 }
 
 export type ViewMode = 'list' | 'agenda'
-
