@@ -76,7 +76,8 @@ function App({ household }: { household: Household }) {
   const generateNewMenu = useCallback(async (
     weekStart: Date,
     dishes: DishIdea[],
-    setMenu: (menu: WeeklyMenu) => void = setCurrentMenu
+    setMenu: (menu: WeeklyMenu) => void = setCurrentMenu,
+    trigger: 'manual' | 'next_week' = 'manual'
   ) => {
     if (dishes.length === 0) {
       setError('No hay platos en el catálogo. Añade platos primero.')
@@ -161,7 +162,7 @@ function App({ household }: { household: Household }) {
 
       setMenu(data as WeeklyMenu)
       setError(null)
-      trackEvent('menu_generated', { week_start: menuData.week_start })
+      trackEvent('menu_generated', { week_start: menuData.week_start, trigger })
     } catch (err) {
       console.error('Error generating menu:', err)
       if (err instanceof Error && !err.message.includes('duplicate key')) {
@@ -267,7 +268,10 @@ function App({ household }: { household: Household }) {
 
               if (insertedMenu && mounted) {
                 setCurrentMenu(insertedMenu as WeeklyMenu)
-                trackEvent('menu_generated', { week_start: newMenuData.week_start })
+                trackEvent('menu_generated', {
+                  week_start: newMenuData.week_start,
+                  trigger: 'auto_initial_load',
+                })
               }
             } catch (err) {
               console.error('Error generating menu:', err)
@@ -384,7 +388,7 @@ function App({ household }: { household: Household }) {
         if (data) {
           setNextWeekMenu(data as WeeklyMenu)
         } else {
-          await generateNewMenu(nextWeekStart, dishIdeas, setNextWeekMenu)
+          await generateNewMenu(nextWeekStart, dishIdeas, setNextWeekMenu, 'next_week')
         }
       } catch (err) {
         console.error('Error loading next week menu:', err)

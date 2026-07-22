@@ -15,6 +15,11 @@ export default function LoginScreen() {
     const trimmed = email.trim()
     if (!trimmed || sending) return
 
+    // Fired on submit attempt (before the request resolves) so the login
+    // funnel can measure drop-off between requesting a link and signing in,
+    // independent of technical send failures.
+    trackEvent('login_link_requested')
+
     setSending(true)
     setError(null)
     try {

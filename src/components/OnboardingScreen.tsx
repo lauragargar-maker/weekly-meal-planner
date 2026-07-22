@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth-context'
-import { translateError } from '../lib/errorMessages'
+import { getErrorMessage, translateError } from '../lib/errorMessages'
 import { STARTER_CATALOG } from '../data/starterCatalog'
 import { trackEvent } from '../lib/analytics'
 
@@ -57,13 +57,12 @@ export default function OnboardingScreen() {
       await refreshHousehold()
     } catch (err) {
       console.error('Error setting up household:', err)
+      const message = getErrorMessage(err)
       trackEvent('household_setup_failed', {
         mode,
-        reason: err instanceof Error ? err.message : 'unknown',
+        reason: message || 'unknown',
       })
-      setError(
-        translateError(err instanceof Error ? err.message : '', 'No se pudo configurar tu hogar')
-      )
+      setError(translateError(message, 'No se pudo configurar tu hogar'))
     } finally {
       setSubmitting(false)
     }
