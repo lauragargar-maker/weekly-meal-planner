@@ -18,3 +18,17 @@ export function translateError(message: string, fallback: string): string {
   }
   return message || fallback
 }
+
+/**
+ * Extract a message string from an unknown thrown value. Handles both real
+ * Error instances and plain objects like Supabase's PostgrestError (which is
+ * NOT an Error subclass, so `err instanceof Error` misses its `message`).
+ */
+export function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    const message = (err as { message: unknown }).message
+    if (typeof message === 'string') return message
+  }
+  return ''
+}

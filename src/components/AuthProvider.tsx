@@ -3,6 +3,7 @@ import { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { AuthContext } from '../lib/auth-context'
 import { Household } from '../types'
+import { identifyUser, resetAnalytics, trackEvent } from '../lib/analytics'
 
 export default function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
@@ -17,8 +18,13 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       setSessionResolved(true)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession)
+      if (event === 'SIGNED_IN') trackEvent('session_signed_in')
+      if (event === 'SIGNED_OUT') {
+        trackEvent('session_signed_out')
+        resetAnalytics()
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -44,6 +50,10 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
   // Key on the user id (not the session object) so token refreshes don't refetch.
   const userId = session?.user?.id ?? null
+
+  useEffect(() => {
+    if (userId) identifyUser(userId)
+  }, [userId])
 
   useEffect(() => {
     let active = true

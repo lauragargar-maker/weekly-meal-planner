@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth-context'
 import { translateError } from '../lib/errorMessages'
+import { trackEvent } from '../lib/analytics'
 
 export default function LoginScreen() {
   const { signInWithEmail } = useAuth()
@@ -14,6 +15,11 @@ export default function LoginScreen() {
     const trimmed = email.trim()
     if (!trimmed || sending) return
 
+    // Fired on submit attempt (before the request resolves) so the login
+    // funnel can measure drop-off between requesting a link and signing in,
+    // independent of technical send failures.
+    trackEvent('login_link_requested')
+
     setSending(true)
     setError(null)
     try {
@@ -21,6 +27,9 @@ export default function LoginScreen() {
       setSent(true)
     } catch (err) {
       console.error('Error sending magic link:', err)
+      trackEvent('login_link_request_failed', {
+        reason: err instanceof Error ? err.message : 'unknown',
+      })
       setError(
         translateError(err instanceof Error ? err.message : '', 'No se pudo enviar el enlace de acceso')
       )
