@@ -13,10 +13,10 @@ export const initAnalytics = (): void => {
     },
     sessionReplay: {
       sampleRate: 1,
-      // Mask all text/inputs by default (login email, household name,
-      // feedback text) rather than opting fields out one by one.
+      // Mask all form inputs (login email, household name, feedback text)
+      // but leave static product text visible so replays are legible.
       privacyConfig: {
-        defaultMaskLevel: 'conservative',
+        defaultMaskLevel: 'medium',
       },
     },
   })
