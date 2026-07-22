@@ -8,6 +8,9 @@ export const initAnalytics = (): void => {
   if (!apiKey || initialized) return
   initialized = true
   void amplitude.initAll(apiKey, {
+    // The Amplitude project lives in Amplitude's EU region; the key only
+    // authenticates against the matching zone.
+    serverZone: 'EU',
     analytics: {
       autocapture: true,
     },
