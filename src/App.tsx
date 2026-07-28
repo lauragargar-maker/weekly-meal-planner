@@ -3,6 +3,8 @@ import { supabase } from './lib/supabase'
 import { useAuth } from './lib/auth-context'
 import { WeeklyMenu, DishIdea, NewDishIdea, Household } from './types'
 import MenuAgendaView from './components/MenuAgendaView'
+import CatalogView from './components/CatalogView'
+import FamilyView from './components/FamilyView'
 import CatalogChecklist from './components/CatalogChecklist'
 import FeedbackButton from './components/FeedbackButton'
 import { generateWeeklyMenu } from './utils/menuGenerator'
@@ -35,8 +37,23 @@ const formatLocalDate = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
+/** The "¡Ñam!" wordmark, which doubles as the way back to the weekly plan. */
+function Wordmark({ as: Tag, onClick }: { as: 'h1' | 'div'; onClick: () => void }) {
+  return (
+    <Tag className="contents">
+      <button
+        onClick={onClick}
+        aria-label="Ir al plan semanal"
+        className="inline-block -rotate-2 text-[28px] font-extrabold leading-none text-rojo-500 focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2 lg:text-[34px]"
+      >
+        ¡Ñam!
+      </button>
+    </Tag>
+  )
+}
+
 function App({ household }: { household: Household }) {
-  const { signOut, session } = useAuth()
+  const { session } = useAuth()
   const householdId = household.id
   const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
   const [nextWeekMenu, setNextWeekMenu] = useState<WeeklyMenu | null>(null)
@@ -45,6 +62,8 @@ function App({ household }: { household: Household }) {
   const [dishIdeas, setDishIdeas] = useState<DishIdea[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [view, setView] = useState<'agenda' | 'catalog' | 'family'>('agenda')
   const isGeneratingMenuRef = useRef(false)
 
   useEffect(() => {
@@ -466,6 +485,46 @@ function App({ household }: { household: Household }) {
     }
   }, [householdId])
 
+  const handleSaveDish = useCallback(async (dishData: NewDishIdea, dishId?: string) => {
+    try {
+      if (dishId) {
+        const { error } = await supabase
+          .from('dish_ideas')
+          .update({ ...dishData, updated_at: new Date().toISOString() })
+          .eq('id', dishId)
+          .eq('household_id', householdId)
+        if (error) throw error
+        trackEvent('dish_edited', { category: dishData.category })
+      } else {
+        const { error } = await supabase
+          .from('dish_ideas')
+          .insert({ ...dishData, household_id: householdId })
+        if (error) throw error
+        trackEvent('dish_added', { category: dishData.category })
+      }
+      await loadDishIdeas()
+    } catch (err) {
+      console.error('Error saving dish:', err)
+      setError(err instanceof Error ? err.message : 'No se pudo guardar el plato')
+    }
+  }, [householdId, loadDishIdeas])
+
+  const handleDeleteDish = useCallback(async (dishId: string) => {
+    try {
+      const { error } = await supabase
+        .from('dish_ideas')
+        .delete()
+        .eq('id', dishId)
+        .eq('household_id', householdId)
+      if (error) throw error
+      trackEvent('dish_deleted')
+      await loadDishIdeas()
+    } catch (err) {
+      console.error('Error deleting dish:', err)
+      setError(err instanceof Error ? err.message : 'No se pudo borrar el plato')
+    }
+  }, [householdId, loadDishIdeas])
+
   const handleSeedCatalog = useCallback(async () => {
     // Don't duplicate dishes the household already has.
     const existingNames = new Set(dishIdeas.map((d) => d.name.toLowerCase()))
@@ -486,10 +545,15 @@ function App({ household }: { household: Household }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div
+        className="min-h-screen flex items-center justify-center"
+        role="status"
+        aria-live="polite"
+      >
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Cargando...</p>
+          <div className="mx-auto h-14 w-14 rounded-full border-4 border-crema-300 border-t-verde-500 animate-spin motion-reduce:animate-pulse" />
+          <p className="mt-4 text-lg font-extrabold">Montando vuestra semana…</p>
+          <p className="mt-1 text-sm font-bold font-sans text-tinta-500">Un segundo, que lo tenemos casi.</p>
         </div>
       </div>
     )
@@ -497,17 +561,25 @@ function App({ household }: { household: Household }) {
 
   if (error && !currentMenu) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="card max-w-md">
-          <h2 className="text-xl font-bold text-red-600 mb-4">Error</h2>
-          <p className="text-gray-700 mb-4">{error}</p>
+      <div className="min-h-screen flex items-center justify-center p-7">
+        <div className="card max-w-md border-[3px] border-rojo-500 text-center" role="alert">
+          <div
+            className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rojo-100 text-[30px] font-extrabold text-rojo-500"
+            aria-hidden="true"
+          >
+            !
+          </div>
+          <h2 className="mt-[18px] text-lg font-extrabold text-rojo-500">Algo se ha torcido</h2>
+          <p className="mt-2 text-sm font-bold font-sans text-tinta-500">{error}</p>
           <button
             onClick={() => {
               setLoading(true)
               setError(null)
-              loadDishIdeas().then(() => loadCurrentMenu(true))
+              loadDishIdeas()
+                .then(() => loadCurrentMenu(true))
+                .finally(() => setLoading(false))
             }}
-            className="btn-primary"
+            className="btn-dark mt-5"
           >
             Reintentar
           </button>
@@ -517,75 +589,129 @@ function App({ household }: { household: Household }) {
   }
 
   const displayedMenu = weekOffset === 0 ? currentMenu : nextWeekMenu
+  const catalogReady = isCatalogReady(dishIdeas)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="text-center sm:text-left">
-            <h1 className="text-2xl font-bold text-gray-900">Menú Semanal</h1>
-            <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-gray-500">
-              <span>{household.name}</span>
-              <span aria-hidden="true">·</span>
-              <span title="Comparte este código para que tu familia se una a este hogar">
-                Código familiar: <span className="font-mono">{household.join_code}</span>
-              </span>
-              <span aria-hidden="true">·</span>
-              <button
-                onClick={() => signOut()}
-                className="text-primary-600 hover:text-primary-700 font-medium"
-              >
-                Salir
-              </button>
+    <div className="min-h-screen">
+      <div className="mx-auto max-w-[1280px] px-[22px] pt-4 pb-7 lg:px-10 lg:pt-7 lg:pb-11">
+        {!isEditing && (
+          <header className="flex items-start justify-between gap-4 lg:items-center">
+            <div className="flex items-baseline gap-3">
+              {/* On the agenda the logo is the page h1; the other views bring their own. */}
+              <Wordmark as={view === 'agenda' ? 'h1' : 'div'} onClick={() => setView('agenda')} />
+              {view === 'agenda' && (
+                <span className="hidden text-[15px] font-extrabold text-tinta-500 lg:inline">
+                  {household.name} · código {household.join_code}
+                </span>
+              )}
             </div>
-          </div>
-        </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800">{error}</p>
-          </div>
-        )}
-
-        {isLoadingNextWeek ? (
-          <div className="card text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Cargando el menú de la próxima semana...</p>
-          </div>
-        ) : displayedMenu ? (
-          <MenuAgendaView
-            menu={displayedMenu}
-            dishIdeas={dishIdeas}
-            onUpdateDish={updateMenuItem}
-            onAddNewDish={handleAddNewDish}
-            weekOffset={weekOffset}
-            canAccessNextWeek={canAccessNextWeek()}
-            onNavigate={handleWeekNav}
-          />
-        ) : (
-          <div className="card text-center space-y-4">
-            <p className="text-gray-600">Todavía no hay menú para esta semana.</p>
-            {!isCatalogReady(dishIdeas) && (
-              <>
-                <CatalogChecklist dishIdeas={dishIdeas} />
-                <button onClick={handleSeedCatalog} className="btn-secondary">
-                  Añadir el catálogo de platos sugerido
+            <nav className="flex items-center gap-2 lg:gap-3">
+              <button
+                onClick={() => setView(view === 'catalog' ? 'agenda' : 'catalog')}
+                aria-current={view === 'catalog' ? 'page' : undefined}
+                className={`btn-secondary !px-4 !py-2 !min-h-[40px] !text-sm ${
+                  view === 'catalog' ? '!border-tinta-900 !text-tinta-900' : ''
+                }`}
+              >
+                Platos
+              </button>
+              <button
+                onClick={() => setView(view === 'family' ? 'agenda' : 'family')}
+                aria-current={view === 'family' ? 'page' : undefined}
+                className={`btn-secondary !px-4 !py-2 !min-h-[40px] !text-sm ${
+                  view === 'family' ? '!border-tinta-900 !text-tinta-900' : ''
+                }`}
+              >
+                Familia
+              </button>
+              {view === 'agenda' && displayedMenu && (
+                <button onClick={() => setIsEditing(true)} className="btn-dark hidden lg:inline-flex">
+                  ✎ Editar la semana
                 </button>
-              </>
-            )}
-            <div>
-              <button
-                onClick={() => generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)}
-                className="btn-primary"
-              >
-                Generar menú
-              </button>
-            </div>
-          </div>
+              )}
+            </nav>
+          </header>
         )}
-      </main>
+
+        <main className={isEditing ? '' : 'mt-3.5 lg:mt-6'}>
+          {error && (
+            <div className="mb-4 rounded-2xl border-2 border-amarillo-300 bg-amarillo-100 p-4">
+              <p className="text-sm font-bold font-sans text-amarillo-700">{error}</p>
+            </div>
+          )}
+
+          {view === 'catalog' ? (
+            <CatalogView
+              dishIdeas={dishIdeas}
+              householdName={household.name}
+              onSaveDish={handleSaveDish}
+              onDeleteDish={handleDeleteDish}
+            />
+          ) : view === 'family' ? (
+            <FamilyView household={household} />
+          ) : isLoadingNextWeek ? (
+            <div className="card py-12 text-center" role="status" aria-live="polite">
+              <div className="mx-auto h-14 w-14 rounded-full border-4 border-crema-300 border-t-verde-500 animate-spin motion-reduce:animate-pulse" />
+              <p className="mt-4 text-lg font-extrabold">Montando la próxima semana…</p>
+            </div>
+          ) : displayedMenu ? (
+            <MenuAgendaView
+              menu={displayedMenu}
+              dishIdeas={dishIdeas}
+              onUpdateDish={updateMenuItem}
+              onAddNewDish={handleAddNewDish}
+              weekOffset={weekOffset}
+              canAccessNextWeek={canAccessNextWeek()}
+              onNavigate={handleWeekNav}
+              isEditing={isEditing}
+              onToggleEditing={setIsEditing}
+            />
+          ) : (
+            <div className="card mx-auto max-w-md text-center">
+              <div
+                className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-crema-200 text-[30px]"
+                aria-hidden="true"
+              >
+                🍽
+              </div>
+              <h2 className="mt-[18px] text-lg font-extrabold">
+                Aún no hay plan para esta semana
+              </h2>
+              {catalogReady ? (
+                <>
+                  <p className="mt-2 text-sm font-bold font-sans text-tinta-500">
+                    Vuestro catálogo ya da para una semana entera.
+                  </p>
+                  <button
+                    onClick={() => generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)}
+                    className="btn-primary mt-4 w-full"
+                  >
+                    Generar menú
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm font-bold font-sans text-tinta-500">
+                    {dishIdeas.length === 0
+                      ? 'Necesitáis al menos 20 platos en el catálogo para montar la semana.'
+                      : `Lleváis ${dishIdeas.length} ${dishIdeas.length === 1 ? 'plato' : 'platos'}. Faltan algunos mínimos para montar la semana.`}
+                  </p>
+                  <div className="mt-4 text-left">
+                    <CatalogChecklist dishIdeas={dishIdeas} />
+                  </div>
+                  <button onClick={() => setView('catalog')} className="btn-primary mt-4 w-full">
+                    Añadir platos
+                  </button>
+                  <button onClick={handleSeedCatalog} className="btn-secondary mt-2 w-full">
+                    Usar el catálogo sugerido
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
 
       {session?.user && <FeedbackButton householdId={household.id} userId={session.user.id} />}
     </div>
