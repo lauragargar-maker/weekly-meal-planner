@@ -4,28 +4,128 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-crema-100 text-tinta-900 font-display antialiased;
+  }
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Movement is short with a bounce; only transform and opacity are animated. */
+  @keyframes nam-sheet-in {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes nam-pop-in {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @keyframes nam-scrim-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes nam-toast-in {
+    from { transform: translate(-50%, 12px); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+  }
+  @keyframes nam-badge-in {
+    from { transform: scale(0.8) rotate(0deg); }
+    to { transform: scale(1) rotate(4deg); }
+  }
+  @keyframes nam-banner-in {
+    from { transform: translateY(-8px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    /* Exception: the spinner becomes an opacity pulse so waiting stays perceivable. */
+    .animate-spin.motion-reduce\:animate-pulse {
+      animation: pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+    }
   }
 }
 
 @layer components {
+  /* --- botones (todos píldora, peso 800) --- */
+  /* verde-600 instead of verde-500: white on verde-500 is 3.38:1, below AA for this text size. */
   .btn-primary {
-    @apply bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center gap-2 bg-verde-600 text-white font-extrabold
+           px-6 py-3.5 rounded-full min-h-[48px] transition-colors duration-120
+           hover:bg-verde-700 active:scale-[0.98]
+           focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2
+           disabled:bg-crema-300 disabled:text-tinta-400 disabled:cursor-not-allowed;
   }
-  
+  .btn-dark {
+    @apply inline-flex items-center justify-center gap-2 bg-tinta-900 text-crema-100 font-extrabold
+           px-6 py-3.5 rounded-full min-h-[48px] transition-colors duration-120
+           hover:bg-tinta-700 active:scale-[0.98]
+           focus:outline-none focus:ring-2 focus:ring-tinta-900 focus:ring-offset-2;
+  }
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center gap-2 bg-white text-tinta-500 font-extrabold
+           px-6 py-3.5 rounded-full min-h-[48px] border-2 border-crema-300
+           transition-colors duration-120 hover:bg-crema-100
+           focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2;
   }
-  
+  .btn-danger {
+    @apply inline-flex items-center justify-center bg-rojo-500 text-white font-extrabold
+           px-6 py-3.5 rounded-full min-h-[48px] transition-colors duration-120
+           hover:bg-rojo-600 focus:outline-none focus:ring-2 focus:ring-rojo-500 focus:ring-offset-2;
+  }
+
+  /* --- superficies --- */
   .card {
-    @apply bg-white rounded-lg shadow-md p-6;
+    @apply bg-white rounded-card border-2 border-crema-300 p-4 md:p-5;
   }
+  .card-hoy {
+    @apply bg-white rounded-hoy border-[3px] border-tinta-900 p-[18px] shadow-pop;
+  }
+  .card-edit {
+    @apply bg-white rounded-[18px] border-2 border-dashed border-crema-300 p-3.5;
+  }
+
+  /* --- chips (filtros, tipo de plato, día de la semana) --- */
+  .chip {
+    @apply inline-flex items-center rounded-full border-2 border-crema-300 bg-white
+           text-tinta-500 font-extrabold text-sm px-4 py-2 min-h-[40px]
+           transition-colors duration-120 cursor-pointer hover:bg-crema-100
+           focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2;
+  }
+  .chip-on {
+    @apply bg-verde-600 border-verde-600 text-white hover:bg-verde-700;
+  }
+
+  /* --- formulario --- */
+  .input-nam {
+    @apply w-full bg-white border-2 border-crema-300 rounded-2xl px-4 py-3
+           text-base font-bold font-sans text-tinta-900 placeholder:text-tinta-300
+           transition-colors duration-120
+           focus:outline-none focus:border-tinta-900 focus:ring-2 focus:ring-verde-500;
+  }
+  .input-hero {
+    @apply input-nam border-[3px] border-tinta-900 rounded-[20px] text-xl font-extrabold shadow-pop-sm;
+  }
+  .label-nam {
+    @apply block text-[13px] font-extrabold tracking-[0.08em] uppercase text-tinta-500 mb-1.5;
+  }
+  .help-nam {
+    @apply text-[13px] font-bold font-sans text-tinta-300 mt-1.5;
+  }
+  .error-nam {
+    @apply text-sm font-bold text-rojo-600 mt-1.5;
+  }
+
+  /* --- entradas animadas --- */
+  .anim-scrim { animation: nam-scrim-in 180ms cubic-bezier(0, 0, 0.2, 1); }
+  .anim-sheet { animation: nam-sheet-in 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .anim-pop   { animation: nam-pop-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .anim-toast { animation: nam-toast-in 240ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .anim-badge { animation: nam-badge-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .anim-banner { animation: nam-banner-in 240ms cubic-bezier(0.22, 1, 0.36, 1); }
 }
-
-
-
-
-
-
-
-

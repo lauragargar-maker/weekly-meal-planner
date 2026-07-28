@@ -1,5 +1,5 @@
 import { WeeklyMenu, DishIdea, NewDishIdea } from '../types'
-import { formatDayName, formatDate } from '../utils/menuGenerator'
+import { formatDayName } from '../utils/menuGenerator'
 import DishEditor from './DishEditor'
 
 interface MenuAgendaViewProps {
@@ -10,9 +10,42 @@ interface MenuAgendaViewProps {
   weekOffset: 0 | 1
   canAccessNextWeek: boolean
   onNavigate: (direction: -1 | 1) => void
+  isEditing: boolean
+  onToggleEditing: (editing: boolean) => void
 }
 
-export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNewDish, weekOffset, canAccessNextWeek, onNavigate }: MenuAgendaViewProps) {
+type MenuItem = WeeklyMenu['menu_items'][0]
+
+const DAY_ABBR = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB']
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+/** Today as a local YYYY-MM-DD string, comparable with the ISO days in menu_items. */
+const todayISO = (): string => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const dayNumber = (iso: string): string => String(new Date(iso).getDate())
+
+const dayAbbr = (iso: string): string => DAY_ABBR[new Date(iso).getDay()]
+
+/** "18 – 24 de julio", or "30 de julio – 5 de agosto" when the week spans two months. */
+const formatWeekRange = (startISO: string, endISO: string): string => {
+  const start = new Date(startISO)
+  const end = new Date(endISO)
+  return start.getMonth() === end.getMonth()
+    ? `${start.getDate()} – ${end.getDate()} de ${MONTHS[end.getMonth()]}`
+    : `${start.getDate()} de ${MONTHS[start.getMonth()]} – ${end.getDate()} de ${MONTHS[end.getMonth()]}`
+}
+
+/** Dish names of a meal, in course order. */
+const dishesOf = (item: MenuItem | null): string[] => {
+  if (!item) return []
+  if (item.single) return [item.single]
+  return [item.starter, item.main].filter((d): d is string => Boolean(d))
+}
+
+export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNewDish, weekOffset, canAccessNextWeek, onNavigate, isEditing, onToggleEditing }: MenuAgendaViewProps) {
   // Group menu items by day
   const itemsByDay = menu.menu_items.reduce((acc, item) => {
     if (!acc[item.day]) {
@@ -24,7 +57,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
       acc[item.day].dinner = item
     }
     return acc
-  }, {} as Record<string, { lunch: typeof menu.menu_items[0] | null; dinner: typeof menu.menu_items[0] | null }>)
+  }, {} as Record<string, { lunch: MenuItem | null; dinner: MenuItem | null }>)
 
   // Sort days chronologically starting from week_start (Saturday)
   const sortedDays = Object.keys(itemsByDay).sort((a, b) => {
@@ -38,148 +71,291 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
   const firstRowDays = sortedDays.slice(0, 4)
   const secondRowDays = sortedDays.slice(4, 7)
 
-  const renderLunch = (day: string, lunch: typeof menu.menu_items[0]) => (
-    <div className="bg-white rounded p-4 border-l-4 border-primary-500">
-      <h4 className="text-lg font-semibold text-primary-700 mb-2">🌅 Comida</h4>
-      {lunch.single ? (
-        <p className="text-lg text-gray-700"><DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} onAddNewDish={onAddNewDish} /></p>
-      ) : (
-        <ul className="text-lg text-gray-700 space-y-2">
-          {lunch.starter && <li><DishEditor value={lunch.starter} slot="starter" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} onAddNewDish={onAddNewDish} /></li>}
-          {lunch.main && <li><DishEditor value={lunch.main} slot="main" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} onAddNewDish={onAddNewDish} /></li>}
-        </ul>
-      )}
-    </div>
+  const today = todayISO()
+  // Only the current week can contain today; next week never highlights a day.
+  const todayDay = weekOffset === 0 ? sortedDays.find((d) => d === today) : undefined
+  const otherDays = sortedDays.filter((d) => d !== todayDay)
+  const isPast = (day: string) => weekOffset === 0 && day < today
+
+  /** Coloured circle with the sun/moon glyph. */
+  const MealCircle = ({ mealType, size }: { mealType: 'lunch' | 'dinner'; size: number }) => (
+    <span
+      className={`flex flex-none items-center justify-center rounded-full ${
+        mealType === 'lunch' ? 'bg-amarillo-500 text-tinta-900' : 'bg-verde-500 text-white'
+      }`}
+      style={{ width: size, height: size, fontSize: size * (mealType === 'lunch' ? 0.45 : 0.41) }}
+      aria-hidden="true"
+    >
+      {mealType === 'lunch' ? '☀' : '☾'}
+    </span>
   )
 
-  const renderDinner = (day: string, dinner: typeof menu.menu_items[0]) => (
-    <div className="bg-white rounded p-4 border-l-4 border-primary-600">
-      <h4 className="text-lg font-semibold text-primary-700 mb-2">🌙 Cena</h4>
-      {dinner.main && (
-        <p className="text-lg text-gray-700"><DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} onAddNewDish={onAddNewDish} /></p>
-      )}
-    </div>
-  )
-
-  const renderDayCard = (day: string, className: string) => {
-    const { lunch, dinner } = itemsByDay[day]
+  /** Circle + COMIDA/CENA label + dish names. Used on prominent cards. */
+  const MealBlock = ({ item, mealType, circle, nameClass }: { item: MenuItem | null; mealType: 'lunch' | 'dinner'; circle: number; nameClass: string }) => {
+    const dishes = dishesOf(item)
+    if (dishes.length === 0) return null
     return (
-      <div key={day} className={className}>
-        <div className="mb-4">
-          <h3 className="text-2xl font-bold text-gray-900">
-            {formatDayName(day)}
-          </h3>
-          <p className="text-lg text-gray-600 mt-1">{formatDate(day)}</p>
-        </div>
-
-        <div className="space-y-4">
-          {lunch && renderLunch(day, lunch)}
-          {dinner && renderDinner(day, dinner)}
+      <div className="flex items-start gap-2.5">
+        <MealCircle mealType={mealType} size={circle} />
+        <div className="min-w-0">
+          <p className="text-xs font-extrabold tracking-[0.08em] text-tinta-500">
+            {mealType === 'lunch' ? 'COMIDA' : 'CENA'}
+          </p>
+          <div className="flex flex-col gap-1">
+            {dishes.map((dish) => (
+              <p key={dish} className={nameClass}>{dish}</p>
+            ))}
+          </div>
         </div>
       </div>
     )
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="card">
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <button
-            onClick={() => onNavigate(-1)}
-            disabled={weekOffset === 0}
-            className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label="Ir a la semana actual"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
+  /** One line per meal, courses joined with "·". Used on secondary cards. */
+  const CompactMeals = ({ lunch, dinner }: { lunch: MenuItem | null; dinner: MenuItem | null }) => {
+    const lunchDishes = dishesOf(lunch)
+    const dinnerDishes = dishesOf(dinner)
+    return (
+      <div className="flex min-w-0 flex-col gap-1 text-sm font-bold font-sans leading-[1.3]">
+        {lunchDishes.length > 0 && (
+          <p className="flex gap-2">
+            <span className="flex-none text-amarillo-500" aria-hidden="true">☀</span>
+            <span className="text-tinta-900">{lunchDishes.join(' · ')}</span>
+          </p>
+        )}
+        {dinnerDishes.length > 0 && (
+          <p className="flex gap-2">
+            <span className="flex-none text-verde-500" aria-hidden="true">☾</span>
+            <span className="text-tinta-500">{dinnerDishes.join(' · ')}</span>
+          </p>
+        )}
+      </div>
+    )
+  }
 
-          <div className="text-center">
-            <div className="text-sm font-medium text-primary-600 mb-1">
-              {weekOffset === 0 ? 'Semana actual' : 'Próxima semana'}
-            </div>
-            <h2 className="text-3xl font-bold">
-              {formatDate(menu.week_start)} – {formatDate(menu.week_end)}
-            </h2>
-          </div>
+  const separator = <div className="h-0.5 rounded bg-amarillo-300" />
 
-          <button
-            onClick={() => onNavigate(1)}
-            disabled={weekOffset === 1 || !canAccessNextWeek}
-            className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label="Ir a la próxima semana"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Desktop layout: 4 days in first row, 3 days in second row */}
-        <div className="hidden lg:block space-y-6">
-          {/* First row: 4 days */}
-          <div className="grid grid-cols-4 gap-6">
-            {firstRowDays.map((day) =>
-              renderDayCard(day, "bg-gray-50 rounded-lg p-6 border border-gray-200 hover:shadow-md transition-shadow")
-            )}
-          </div>
-
-          {/* Second row: 3 days - centered */}
-          <div className="flex justify-center">
-            <div className="grid grid-cols-3 gap-6 w-3/4">
-              {secondRowDays.map((day) =>
-                renderDayCard(day, "bg-gray-50 rounded-lg p-6 border border-gray-200 hover:shadow-md transition-shadow")
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile/Tablet layout: responsive grid */}
-        <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-4">
-          {sortedDays.map((day) => {
-            const { lunch, dinner } = itemsByDay[day]
-            return (
-              <div
-                key={day}
-                className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="mb-3">
-                  <h3 className="text-xl font-bold text-gray-900">
-                    {formatDayName(day)}
-                  </h3>
-                  <p className="text-base text-gray-600">{formatDate(day)}</p>
-                </div>
-
-                <div className="space-y-3">
-                  {lunch && (
-                    <div className="bg-white rounded p-3 border-l-4 border-primary-500">
-                      <h4 className="text-base font-semibold text-primary-700 mb-1">🌅 Comida</h4>
-                      {lunch.single ? (
-                        <p className="text-base text-gray-700"><DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} onAddNewDish={onAddNewDish} /></p>
-                      ) : (
-                        <ul className="text-base text-gray-700 space-y-1">
-                          {lunch.starter && <li><DishEditor value={lunch.starter} slot="starter" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} onAddNewDish={onAddNewDish} /></li>}
-                          {lunch.main && <li><DishEditor value={lunch.main} slot="main" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} onAddNewDish={onAddNewDish} /></li>}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-
-                  {dinner && (
-                    <div className="bg-white rounded p-3 border-l-4 border-primary-600">
-                      <h4 className="text-base font-semibold text-primary-700 mb-1">🌙 Cena</h4>
-                      {dinner.main && (
-                        <p className="text-base text-gray-700"><DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} onAddNewDish={onAddNewDish} /></p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+  /** Highlighted card for today. */
+  const renderTodayCard = (day: string, variant: 'mobile' | 'desktop') => {
+    const { lunch, dinner } = itemsByDay[day]
+    const desktop = variant === 'desktop'
+    const nameClass = `font-extrabold leading-[1.25] ${desktop ? 'text-[21px]' : 'text-[19px]'}`
+    return (
+      <div className={`relative ${desktop ? 'h-full' : 'mt-1.5'}`}>
+        <span
+          className={`anim-badge absolute right-3.5 z-[2] rotate-[4deg] rounded-full bg-amarillo-500 px-3.5 py-1 font-extrabold text-tinta-900 shadow-badge ${
+            desktop ? '-top-[13px] text-[15px]' : '-top-3 text-[13px]'
+          }`}
+        >
+          {desktop ? 'HOY' : `HOY · ${formatDayName(day)}`}
+        </span>
+        <div
+          className={`h-full border-[3px] border-tinta-900 bg-white ${
+            desktop ? 'rounded-[26px] p-6 shadow-[7px_7px_0_#f0e2c8]' : 'rounded-hoy p-[18px] shadow-pop'
+          }`}
+        >
+          {desktop && (
+            <h3 className="mb-4 text-[22px] font-extrabold text-rojo-500">
+              {formatDayName(day)} {dayNumber(day)}
+            </h3>
+          )}
+          <MealBlock item={lunch} mealType="lunch" circle={44} nameClass={nameClass} />
+          <div className={desktop ? 'my-[18px]' : 'my-3.5'}>{separator}</div>
+          <MealBlock item={dinner} mealType="dinner" circle={44} nameClass={nameClass} />
         </div>
       </div>
+    )
+  }
+
+  /** Mobile row for any day that is not today. */
+  const renderCompactRow = (day: string) => {
+    const { lunch, dinner } = itemsByDay[day]
+    return (
+      <div
+        key={day}
+        className={`flex gap-3 rounded-[18px] border-2 border-crema-300 bg-white py-3 px-3.5 ${
+          isPast(day) ? 'opacity-[0.55]' : ''
+        }`}
+      >
+        <div className="w-[46px] flex-none self-start rounded-xl bg-crema-200 py-1.5 text-center">
+          <p className="text-xs font-extrabold text-tinta-500">{dayAbbr(day)}</p>
+          <p className="text-base font-extrabold text-tinta-500">{dayNumber(day)}</p>
+        </div>
+        <CompactMeals lunch={lunch} dinner={dinner} />
+      </div>
+    )
+  }
+
+  /** Desktop card in the 3×2 grid beside today. */
+  const renderGridCard = (day: string) => {
+    const { lunch, dinner } = itemsByDay[day]
+    return (
+      <div
+        key={day}
+        className={`rounded-[20px] border-2 border-crema-300 bg-white p-4 transition-transform duration-180 hover:-translate-y-0.5 hover:shadow-pop ${
+          isPast(day) ? 'opacity-[0.55]' : ''
+        }`}
+      >
+        <h3 className="mb-2 text-base font-extrabold">
+          {formatDayName(day)} {dayNumber(day)}
+        </h3>
+        <CompactMeals lunch={lunch} dinner={dinner} />
+      </div>
+    )
+  }
+
+  /** Desktop card for next week, where no day stands out. */
+  const renderUniformCard = (day: string) => {
+    const { lunch, dinner } = itemsByDay[day]
+    return (
+      <div
+        key={day}
+        className="rounded-card border-2 border-crema-300 bg-white p-5 transition-transform duration-180 hover:-translate-y-0.5 hover:shadow-pop"
+      >
+        <h3 className="text-xl font-extrabold">{formatDayName(day)}</h3>
+        <p className="text-sm font-bold font-sans text-tinta-500">{dayNumber(day)}</p>
+        <div className="mt-3.5">
+          <MealBlock item={lunch} mealType="lunch" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
+        </div>
+        <div className="my-3">{separator}</div>
+        <MealBlock item={dinner} mealType="dinner" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
+      </div>
+    )
+  }
+
+  /** Dashed card with one tappable row per dish. */
+  const renderEditCard = (day: string) => {
+    const { lunch, dinner } = itemsByDay[day]
+    const isToday = day === todayDay
+    return (
+      <div key={day} className="card-edit lg:rounded-card">
+        <h3 className={`mb-2 text-[15px] font-extrabold lg:text-[17px] ${isToday ? 'text-rojo-500' : ''}`}>
+          {formatDayName(day)}
+          {isToday ? ' · HOY' : ''}
+        </h3>
+        <div className="flex flex-col gap-1.5">
+          {lunch?.single && (
+            <DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} onAddNewDish={onAddNewDish} />
+          )}
+          {lunch?.starter && (
+            <DishEditor value={lunch.starter} slot="starter" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} onAddNewDish={onAddNewDish} />
+          )}
+          {lunch?.main && (
+            <DishEditor value={lunch.main} slot="main" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} onAddNewDish={onAddNewDish} />
+          )}
+          {dinner?.main && (
+            <DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} onAddNewDish={onAddNewDish} />
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if (isEditing) {
+    return (
+      <div>
+        <div className="anim-banner sticky top-0 z-10 flex items-center justify-between gap-3 rounded-[20px] bg-tinta-900 py-3 px-[18px] text-crema-100 lg:py-4 lg:px-6">
+          <div className="min-w-0">
+            <p className="text-base font-extrabold lg:text-[19px]">
+              ✎ Estás editando la semana del {formatWeekRange(menu.week_start, menu.week_end)}
+            </p>
+            <p className="text-xs font-bold font-sans text-crema-400 lg:text-sm">
+              Toca un plato para cambiarlo. Los cambios se guardan solos.
+            </p>
+          </div>
+          <button
+            onClick={() => onToggleEditing(false)}
+            className="flex-none rounded-full bg-verde-600 px-4 py-2 text-sm font-extrabold text-white transition-colors duration-120 hover:bg-verde-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-amarillo-500 focus:ring-offset-2 focus:ring-offset-tinta-900 lg:px-[22px] lg:py-2.5 lg:text-[15px]"
+          >
+            ✓ Hecho
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2.5 lg:hidden">
+          {sortedDays.map((day) => renderEditCard(day))}
+        </div>
+
+        <div className="mt-5 hidden lg:block">
+          <div className="grid grid-cols-4 gap-5">
+            {firstRowDays.map((day) => renderEditCard(day))}
+          </div>
+          <div className="mt-5 grid grid-cols-3 gap-5">
+            {secondRowDays.map((day) => renderEditCard(day))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // after:-inset-1 widens the tap target to 44px on mobile without changing the 36px visual.
+  const navButton = (direction: -1 | 1, disabled: boolean, label: string, glyph: string) => (
+    <button
+      onClick={() => onNavigate(direction)}
+      disabled={disabled}
+      className="relative flex h-9 w-9 flex-none items-center justify-center rounded-xl border-2 border-crema-300 bg-white text-lg font-extrabold text-tinta-500 transition-colors duration-120 after:absolute after:-inset-1 after:content-[''] hover:bg-crema-100 active:scale-[0.96] focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:text-crema-400 disabled:opacity-40 lg:h-11 lg:w-11 lg:rounded-[14px] lg:after:hidden"
+      aria-label={label}
+    >
+      {glyph}
+    </button>
+  )
+
+  const weekLabel = weekOffset === 0 ? 'SEMANA ACTUAL' : 'PRÓXIMA SEMANA'
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 lg:justify-center lg:gap-6">
+        {navButton(-1, weekOffset === 0, 'Ir a la semana actual', '‹')}
+        <div className="text-center">
+          <p className="hidden text-[13px] font-extrabold tracking-[0.08em] text-verde-500 lg:block">
+            {weekLabel}
+          </p>
+          <h2 className="text-lg font-extrabold lg:text-[30px]">
+            {formatWeekRange(menu.week_start, menu.week_end)}
+          </h2>
+          <p className="text-xs font-extrabold tracking-[0.08em] text-verde-500 lg:hidden">
+            {weekLabel}
+          </p>
+        </div>
+        {navButton(1, weekOffset === 1 || !canAccessNextWeek, 'Ir a la próxima semana', '›')}
+      </div>
+
+      {/* Mobile: today highlighted, every other day as a compact row */}
+      <div className="mt-4 flex flex-col gap-2.5 lg:hidden">
+        {sortedDays.map((day) =>
+          day === todayDay ? (
+            <div key={day}>{renderTodayCard(day, 'mobile')}</div>
+          ) : (
+            renderCompactRow(day)
+          )
+        )}
+      </div>
+
+      {/* Desktop: today on the left + 3×2 grid; uniform 4+3 when no day is today */}
+      <div className="mt-6 hidden lg:block">
+        {todayDay ? (
+          <div className="flex items-stretch gap-5">
+            <div className="w-[340px] flex-none">{renderTodayCard(todayDay, 'desktop')}</div>
+            <div className="grid flex-1 grid-cols-3 grid-rows-2 gap-3.5">
+              {otherDays.map((day) => renderGridCard(day))}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-4 gap-5">
+              {firstRowDays.map((day) => renderUniformCard(day))}
+            </div>
+            <div className="mt-5 flex justify-center">
+              <div className="grid w-3/4 grid-cols-3 gap-5">
+                {secondRowDays.map((day) => renderUniformCard(day))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <button onClick={() => onToggleEditing(true)} className="btn-dark mt-4 w-full lg:hidden">
+        ✎ Editar la semana
+      </button>
     </div>
   )
 }

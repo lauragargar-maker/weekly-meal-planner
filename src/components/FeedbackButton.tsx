@@ -64,37 +64,44 @@ export default function FeedbackButton({ householdId, userId }: FeedbackButtonPr
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 px-4 py-3 rounded-full shadow-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+        className="fixed bottom-6 right-6 z-40 min-h-[44px] rounded-full bg-verde-600 px-5 py-3 text-sm font-extrabold text-white shadow-toast transition-colors duration-120 hover:bg-verde-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2"
       >
         Feedback
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 z-[45] flex items-center justify-center bg-[rgba(38,33,28,0.5)] p-7"
           onClick={closeModal}
         >
           <div
-            className="bg-white rounded-xl shadow-xl w-full max-w-md p-6"
+            className="w-full max-w-md rounded-sheet bg-crema-100 py-7 px-6 shadow-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Enviar feedback"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-gray-900">Cuéntanos qué tal</h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 p-1">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-xl font-extrabold">Cuéntanos qué tal</h2>
+              <button
+                onClick={closeModal}
+                aria-label="Cerrar"
+                className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-full border-2 border-crema-300 bg-white font-extrabold text-tinta-500 transition-colors duration-120 hover:bg-crema-100 focus:outline-none focus:ring-2 focus:ring-verde-500"
+              >
+                ✕
               </button>
             </div>
 
             {sent ? (
-              <div className="text-center py-4">
-                <p className="text-gray-800 font-medium mb-4">¡Gracias por tu feedback!</p>
-                <button onClick={closeModal} className="btn-primary">Cerrar</button>
+              <div className="py-4 text-center">
+                <p className="text-base font-extrabold">¡Gracias por tu feedback!</p>
+                <button onClick={closeModal} className="btn-primary mt-5 w-full">
+                  Cerrar
+                </button>
               </div>
             ) : (
               <>
-                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="feedback-message">
+                <label className="label-nam mt-5" htmlFor="feedback-message">
                   Ideas, fallos o cualquier cosa que quieras contarnos
                 </label>
                 <textarea
@@ -103,25 +110,21 @@ export default function FeedbackButton({ householdId, userId }: FeedbackButtonPr
                   rows={4}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Escribe aquí..."
+                  className="input-nam resize-y"
+                  placeholder="Escribe aquí…"
                 />
-                {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-                <div className="flex justify-end gap-3 mt-4">
-                  <button
-                    onClick={closeModal}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!message.trim() || submitting}
-                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {submitting ? 'Enviando...' : 'Enviar'}
-                  </button>
-                </div>
+                {error && (
+                  <p className="error-nam" role="alert">
+                    {error}
+                  </p>
+                )}
+                <button
+                  onClick={handleSubmit}
+                  disabled={!message.trim() || submitting}
+                  className="btn-dark mt-5 w-full"
+                >
+                  {submitting ? 'Enviando…' : 'Enviar'}
+                </button>
               </>
             )}
           </div>

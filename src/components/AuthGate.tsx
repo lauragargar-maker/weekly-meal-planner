@@ -9,10 +9,16 @@ export default function AuthGate() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div
+        className="min-h-screen bg-crema-100 flex items-center justify-center"
+        role="status"
+        aria-live="polite"
+      >
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Cargando...</p>
+          <div className="mx-auto h-14 w-14 rounded-full border-4 border-crema-300 border-t-verde-500 animate-spin motion-reduce:animate-pulse" />
+          <p className="mt-4 text-base font-bold font-sans text-tinta-500">
+            Montando vuestra semana…
+          </p>
         </div>
       </div>
     )
@@ -22,18 +28,23 @@ export default function AuthGate() {
 
   if (!household && householdError) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="card max-w-md">
-          <h2 className="text-xl font-bold text-red-600 mb-4">No se pudo cargar tu hogar</h2>
-          <p className="text-gray-700 mb-4">{householdError}</p>
-          <div className="flex gap-3">
+      <div className="min-h-screen bg-crema-100 flex items-center justify-center p-7">
+        <div className="card max-w-md border-[3px] border-rojo-500 text-center" role="alert">
+          <div
+            className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rojo-100 text-[30px] font-extrabold text-rojo-500"
+            aria-hidden="true"
+          >
+            !
+          </div>
+          <h2 className="mt-[18px] text-xl font-extrabold text-rojo-500">
+            No se pudo cargar tu hogar
+          </h2>
+          <p className="mt-2 text-sm font-bold font-sans text-tinta-500">{householdError}</p>
+          <div className="mt-5 flex gap-3 justify-center">
             <button onClick={() => refreshHousehold()} className="btn-primary">
               Reintentar
             </button>
-            <button
-              onClick={() => signOut()}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
+            <button onClick={() => signOut()} className="btn-secondary">
               Salir
             </button>
           </div>
