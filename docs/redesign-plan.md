@@ -32,7 +32,7 @@ El handoff da por existentes cosas que no están implementadas:
 | Onboarding "PASO 1 DE 3" | El onboarding es de un solo paso |
 
 Decisiones tomadas: el catálogo, "Familia", y borrar/editar platos **entran** en este rediseño.
-Los roles y la lista de miembros se aplazan a versiones posteriores (fases 6 y 7).
+Los roles y la lista de miembros se aplazan a versiones posteriores (fases 7 y 8).
 
 ---
 
@@ -114,7 +114,7 @@ PWA standalone el botón atrás del sistema debe volver a la agenda en vez de sa
   El filtrado es en cliente sobre `dishIdeas`, que `App.tsx` ya carga y mantiene suscrito
   a realtime, así que no hace falta ninguna consulta nueva.
   Sin distinción de rol: todos ven ✎ y "+". Se omiten el aviso verde de miembro y el botón
-  "Sugerir un plato" del spec, que dependen de la Fase 6.
+  "Sugerir un plato" del spec, que dependen de la Fase 7.
 - **Familia.** Spec: `familia.md` (añadida al bundle el 2026-07-26). **Se construye parcial**,
   porque de sus cuatro bloques solo dos son viables hoy:
   - Cabecera: nombre de la casa (`h1`) + ✎ para renombrar en línea (Enter/Escape),
@@ -124,8 +124,8 @@ PWA standalone el botón atrás del sistema debe volver a la agenda en vez de sa
     (el valor real no se toca) + botón "Compartir" con `navigator.share` y fallback a
     portapapeles, más el toast "Código copiado".
   - "Cerrar sesión" como enlace de acción verde subrayado (`<button>`, no `<a>`).
-  - **Se omiten**: la lista de miembros y el subtítulo "N miembros · eres admin" (Fase 7),
-    el bloque "Ajustes de la casa" (ver backlog), y las variantes admin/miembro (Fase 6).
+  - **Se omiten**: la lista de miembros y el subtítulo "N miembros · eres admin" (Fase 8),
+    el bloque "Ajustes de la casa" (depende de la Fase 6), y las variantes admin/miembro (Fase 7).
 
 > La cabecera de `familia.md` afirma que "se mantienen" la lista de miembros, el RPC de
 > compartir, el ajuste de inicio de semana y que "los permisos por rol ya existen".
@@ -232,7 +232,36 @@ queda para una decisión aparte.
 
 ## Pendiente para versiones posteriores
 
-### Fase 6 — Admin vs. miembro
+### Fase 6 — Onboarding en tres pasos ← **prioridad**
+
+`onboarding-screen.md` describe un onboarding guiado en tres pasos que **nunca se implementó**:
+en la Fase 1 se aplicó la estética nueva sobre el flujo de un paso que ya funcionaba, y el
+resto se aplazó. Los pasos del diseño:
+
+1. Nombre de la familia + selector "La semana empieza en" → "Seguir".
+2. Elección de catálogo: "Usar los platos de siempre" (badge RECOMENDADO) / "Prefiero elegirlos yo".
+3. Reglas de la casa: una fila por regla con casilla y stepper de 1 a 7, más un contador de
+   mínimos que **bloquea el avance hasta llegar a 20 platos**.
+
+> **No es una fase autónoma.** Los pasos 1 y 3 arrastran dos piezas de backend que en su
+> momento se separaron a propósito; ver las dos secciones de dependencias más abajo. Medido en
+> trabajo real es probablemente la fase más grande de todas, no la más pequeña.
+
+Además, a resolver dentro de esta fase:
+
+- **El código de invitación de la beta no aparece en el diseño**, pero
+  `redeem_invite_and_create_household` lo exige para crear un hogar. Hay que decidir en qué
+  paso vive, o el onboarding rediseñado no podrá crear hogares.
+- El contador de mínimos puede apoyarse en `isCatalogReady` y `CatalogChecklist`, que ya
+  calculan lo necesario; hoy simplemente no cortan el flujo.
+- Estado de navegación entre pasos (hoy `OnboardingScreen` es un único formulario).
+
+**Beneficio colateral**: cierra de raíz el callejón del catálogo vacío que apareció en las
+pruebas (ver más abajo), porque el paso 3 no deja salir del onboarding sin platos suficientes.
+
+Si se aborda, conviene rediseñar el flujo entero de una vez en lugar de trocearlo.
+
+### Fase 7 — Admin vs. miembro
 
 Aplicar la distinción de rol que el diseño ya contempla: ✎ y "+" solo para admin,
 "Solo el admin puede editar el plan" en la agenda, badge ADMIN, aviso verde y botón
@@ -254,7 +283,7 @@ Por tanto no basta con ocultar botones: hacerlo solo en cliente sería seguridad
 Requiere migración de RLS. **Riesgo:** puede bloquear a usuarios de la beta que hoy editan
 sin restricción; conviene revisar quién es `owner` en los hogares reales antes de aplicarlo.
 
-### Fase 7 — Lista de miembros en "Familia"
+### Fase 8 — Lista de miembros en "Familia"
 
 **Solución técnica por decidir.** El problema no es solo de permisos:
 
@@ -278,15 +307,15 @@ Al completarse, la lista rellena el hueco central de Familia (`familia.md` §3):
 inicial y color rotando por índice, nombre, correo y etiqueta ADMIN rectangular de 6 px.
 También habilita el subtítulo "N miembros · eres admin" y el estado "Solo un miembro".
 
-> Las fases 6 y 7 tocan la misma tabla y la misma RLS. Conviene diseñarlas y aplicarlas
+> Las fases 7 y 8 tocan la misma tabla y la misma RLS. Conviene diseñarlas y aplicarlas
 > juntas en una sola migración, no por separado.
 
-### Backlog — ajuste "La semana empieza en"
+### Dependencia de la Fase 6 — ajuste "La semana empieza en"
 
-`familia.md` §4 incluye una fila de ajustes con el día de inicio de semana. **No existe**:
-la semana es sábado–viernes fija en `getCurrentWeekSaturday()` (`App.tsx`), y `households`
-no tiene columna para configurarlo. Queda apuntado, sin decidir, porque no es un ajuste de
-presentación sino de lógica de negocio. Implicaciones a valorar antes de abordarlo:
+Aparece en el paso 1 del onboarding y también en `familia.md` §4. **No existe**: la semana es
+sábado–viernes fija en `getCurrentWeekSaturday()` (`App.tsx`), y `households` no tiene columna
+para configurarlo. No es un ajuste de presentación sino de lógica de negocio.
+Implicaciones a valorar antes de abordarlo:
 
 - `generateWeeklyMenu` y el cálculo de `week_start` / `week_end`.
 - Los menús **ya guardados** con el inicio de semana antiguo: ¿se migran, conviven o se descartan?
@@ -295,7 +324,23 @@ presentación sino de lógica de negocio. Implicaciones a valorar antes de abord
 
 Entronca con "reglas configurables por hogar", que ya estaba en el backlog del proyecto.
 
-### Corregido tras las pruebas — callejón sin salida con el catálogo vacío
+### Dependencia de la Fase 6 — reglas configurables por hogar
+
+El paso 3 del onboarding pinta las reglas de la casa como casillas con stepper de 1 a 7.
+Hoy esas reglas **no son configurables**: viven dentro de `menuGenerator.ts` y en `SETTINGS`
+(`config.ts`), que es un objeto global hardcodeado e igual para todos los hogares.
+
+Hacerlas por hogar implica decidir dónde se guardan (columna JSON en `households` o tabla
+propia), que `generateWeeklyMenu` las lea en lugar de asumir las suyas, y qué pasa con los
+hogares existentes, que necesitarán valores por defecto equivalentes a los actuales para que
+sus menús no cambien de comportamiento de un día para otro.
+
+Ya estaba en el backlog del proyecto como "reglas configurables por hogar", anterior al
+rediseño.
+
+---
+
+## Corregido tras las pruebas — callejón sin salida con el catálogo vacío
 
 Al elegir "Prefiero elegirlos yo" en el onboarding, el hogar se creaba con el catálogo vacío
 y la agenda ofrecía "Generar menú", que es imposible sin platos. Tres fallos encadenados:
@@ -312,22 +357,8 @@ y la agenda ofrecía "Generar menú", que es imposible sin platos. Tres fallos e
    platos hay y el checklist señala qué mínimos faltan, siguiendo la regla de `accessibility.md`
    de explicar por qué un CTA no está disponible.
 
-El onboarding de tres pasos habría evitado el caso de raíz (su paso 3 no deja avanzar por
-debajo de 20 platos), pero no hace falta rehacerlo para cerrar esta salida.
-
-### Backlog — onboarding de tres pasos
-
-`onboarding-screen.md` describe un onboarding guiado en tres pasos que hoy no existe.
-Además del inicio de semana, requiere:
-
-- **Reglas por hogar** (paso 3): casillas y steppers de 1 a 7 por regla. Hoy las reglas viven
-  en `menuGenerator.ts` y en `SETTINGS` (`config.ts`), que es un objeto global hardcodeado,
-  no configurable por hogar. Es la misma pieza que "reglas configurables por hogar" del backlog.
-- **Contador de mínimos** que bloquea el CTA hasta 20 platos. `isCatalogReady` y
-  `CatalogChecklist` ya calculan los mínimos, pero no cortan el onboarding.
-- Reubicar el **código de invitación de la beta**, ausente en el diseño pero obligatorio hoy.
-
-Si se aborda, conviene rediseñar el flujo entero de una vez en lugar de trocearlo.
+Es un parche en la salida, no en la causa: la Fase 6 lo cierra de raíz, porque su paso 3 no
+deja terminar el onboarding por debajo de 20 platos.
 
 ---
 
