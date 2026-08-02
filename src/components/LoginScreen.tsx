@@ -4,37 +4,72 @@ import { translateError } from '../lib/errorMessages'
 import { trackEvent } from '../lib/analytics'
 
 export default function LoginScreen() {
-  const { signInWithEmail } = useAuth()
+  const { signInWithEmail, verifyCode } = useAuth()
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
+  const [step, setStep] = useState<'email' | 'code'>('email')
   const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState(false)
+  const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmed = email.trim()
-    if (!trimmed || sending) return
-
+  const requestCode = async (): Promise<boolean> => {
     // Fired on submit attempt (before the request resolves) so the login
-    // funnel can measure drop-off between requesting a link and signing in,
-    // independent of technical send failures.
+    // funnel can measure drop-off between requesting a code and signing in,
+    // independent of technical send failures. The event name predates the move
+    // from magic links to codes; it is kept so the series stays continuous.
     trackEvent('login_link_requested')
 
     setSending(true)
     setError(null)
     try {
-      await signInWithEmail(trimmed)
-      setSent(true)
+      await signInWithEmail(email.trim())
+      return true
     } catch (err) {
-      console.error('Error sending magic link:', err)
+      console.error('Error sending sign-in code:', err)
       trackEvent('login_link_request_failed', {
         reason: err instanceof Error ? err.message : 'unknown',
       })
       setError(
-        translateError(err instanceof Error ? err.message : '', 'No se pudo enviar el enlace de acceso')
+        translateError(err instanceof Error ? err.message : '', 'No se pudo enviar el código de acceso')
       )
+      return false
     } finally {
       setSending(false)
+    }
+  }
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim() || sending) return
+    if (await requestCode()) {
+      setCode('')
+      setStep('code')
+    }
+  }
+
+  const handleResend = async () => {
+    if (sending) return
+    setCode('')
+    await requestCode()
+  }
+
+  const handleCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = code.trim()
+    if (!trimmed || verifying) return
+
+    setVerifying(true)
+    setError(null)
+    try {
+      // On success the auth listener in AuthProvider picks up the new session
+      // and AuthGate routes onwards, so there is nothing to do here.
+      await verifyCode(email.trim(), trimmed)
+    } catch (err) {
+      console.error('Error verifying sign-in code:', err)
+      setError(
+        translateError(err instanceof Error ? err.message : '', 'No se pudo comprobar el código')
+      )
+      setVerifying(false)
     }
   }
 
@@ -45,7 +80,7 @@ export default function LoginScreen() {
           ¡Ñam!
         </h1>
 
-        {sent ? (
+        {step === 'code' ? (
           <div className="mt-11 text-center">
             <div
               className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-amarillo-500 text-[44px] shadow-pop"
@@ -55,16 +90,65 @@ export default function LoginScreen() {
             </div>
             <h2 className="mt-6 text-[26px] font-extrabold text-white">¡Revisa tu correo!</h2>
             <p className="mt-2 text-base font-bold font-sans text-verde-100">
-              Te hemos enviado un enlace de acceso a{' '}
-              <span className="font-extrabold text-white">{email.trim()}</span>. Ábrelo en este
-              dispositivo para continuar.
+              Te hemos enviado un código de 6 dígitos a{' '}
+              <span className="font-extrabold text-white">{email.trim()}</span>.
             </p>
-            <button
-              onClick={() => setSent(false)}
-              className="mt-6 inline-flex min-h-[44px] items-center justify-center rounded-full border-2 border-crema-300 bg-white px-6 text-sm font-extrabold text-tinta-500 transition-colors duration-120 hover:bg-crema-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-verde-500"
-            >
-              Usar otro email
-            </button>
+
+            <form onSubmit={handleCodeSubmit} className="mt-8">
+              <label className="label-nam !text-verde-100" htmlFor="login-code">
+                Tu código
+              </label>
+              <input
+                id="login-code"
+                type="text"
+                required
+                autoFocus
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="mt-2 w-full rounded-full bg-white px-5 py-[15px] md:px-[22px] md:py-4 text-center text-[26px] md:text-[30px] font-extrabold font-sans tracking-[0.35em] text-tinta-900 placeholder:tracking-[0.2em] placeholder:text-tinta-300 focus:outline-none focus:ring-2 focus:ring-tinta-900"
+                placeholder="123456"
+              />
+              {error && (
+                <p className="mt-2 text-sm font-extrabold text-amarillo-500" role="alert">
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={verifying || !code.trim()}
+                className="btn-dark mt-3 w-full text-[17px] md:text-[18px] focus:ring-white focus:ring-offset-verde-500 disabled:opacity-70"
+              >
+                {verifying && (
+                  <span
+                    className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-crema-100/40 border-t-crema-100"
+                    aria-hidden="true"
+                  />
+                )}
+                {verifying ? 'Comprobando…' : 'Entrar'}
+              </button>
+            </form>
+
+            <div className="mt-6 flex flex-col items-center gap-3">
+              <button
+                onClick={handleResend}
+                disabled={sending}
+                className="text-[15px] font-extrabold text-white underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-verde-500 disabled:opacity-70"
+              >
+                {sending ? 'Enviando…' : 'Enviarme otro código'}
+              </button>
+              <button
+                onClick={() => {
+                  setStep('email')
+                  setError(null)
+                }}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-full border-2 border-crema-300 bg-white px-6 text-sm font-extrabold text-tinta-500 transition-colors duration-120 hover:bg-crema-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-verde-500"
+              >
+                Usar otro email
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -72,7 +156,7 @@ export default function LoginScreen() {
               Qué come tu familia esta semana, sin pensarlo cada día.
             </p>
 
-            <form onSubmit={handleSubmit} className="mt-11">
+            <form onSubmit={handleEmailSubmit} className="mt-11">
               <label className="label-nam !text-verde-100" htmlFor="login-email">
                 Tu correo
               </label>
@@ -101,12 +185,12 @@ export default function LoginScreen() {
                     aria-hidden="true"
                   />
                 )}
-                {sending ? 'Enviando enlace…' : 'Enviarme el enlace mágico'}
+                {sending ? 'Enviando código…' : 'Enviarme el código'}
               </button>
             </form>
 
             <p className="mt-4 text-center text-sm md:text-[15px] font-bold font-sans text-verde-100">
-              Sin contraseñas. Te llega un enlace y entras con un toque.
+              Sin contraseñas. Te llega un código de 6 dígitos y entras.
             </p>
 
             <p className="mt-9 border-t-2 border-white/25 pt-[18px] text-center text-[15px] font-extrabold text-white">

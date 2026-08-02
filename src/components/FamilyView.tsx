@@ -8,9 +8,9 @@ interface FamilyViewProps {
   household: Household
 }
 
-/** "67676767" → "6767 6767", for display only. */
+/** "123456" → "123 456", for display only. */
 const formatJoinCode = (code: string): string =>
-  code.length === 8 ? `${code.slice(0, 4)} ${code.slice(4)}` : code
+  code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code
 
 export default function FamilyView({ household }: FamilyViewProps) {
   const { session, signOut, refreshHousehold } = useAuth()
@@ -67,13 +67,17 @@ export default function FamilyView({ household }: FamilyViewProps) {
   }
 
   const shareCode = async () => {
-    const text = `Únete a ${household.name} en ¡Ñam! con el código ${household.join_code}`
+    // Shared and copied in the same grouped form the screen shows, so what the
+    // other person receives matches what the sender is looking at. join_household
+    // strips everything that is not a digit, so the space is harmless.
+    const code = formatJoinCode(household.join_code)
+    const text = `Únete a ${household.name} en ¡Ñam! con el código ${code}`
     try {
       if (navigator.share) {
         await navigator.share({ text })
         return
       }
-      await navigator.clipboard.writeText(household.join_code)
+      await navigator.clipboard.writeText(code)
       setToast('Código copiado')
     } catch (err) {
       // The user dismissing the share sheet lands here too; only report real failures.

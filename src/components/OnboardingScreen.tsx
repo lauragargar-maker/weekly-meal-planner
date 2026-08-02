@@ -203,14 +203,15 @@ export default function OnboardingScreen() {
                 id="family-code"
                 type="text"
                 required
+                inputMode="numeric"
                 value={familyCode}
                 onChange={(e) => setFamilyCode(e.target.value)}
                 className="input-hero"
-                placeholder="p. ej. 4F7A2C9B"
+                placeholder="p. ej. 123 456"
               />
               <p className="help-nam">
-                Pídele el código familiar a quien creó vuestro hogar: aparece en la parte superior
-                de su app.
+                Pídele el código familiar a quien creó vuestro hogar: lo tiene en su pantalla
+                «Familia».
               </p>
             </>
           )}

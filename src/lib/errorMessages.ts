@@ -7,9 +7,12 @@ const KNOWN_ERRORS: Array<[string, string]> = [
   ['Household name is required', 'El nombre del hogar es obligatorio'],
   ['Not authenticated', 'No has iniciado sesión'],
   ['Email rate limit exceeded', 'Se ha superado el límite de envío de emails. Espera unos minutos e inténtalo de nuevo'],
-  ['you can only request this after', 'Por seguridad, espera un momento antes de pedir otro enlace'],
+  ['you can only request this after', 'Por seguridad, espera un momento antes de pedir otro código'],
   ['Error sending confirmation email', 'No se pudo enviar el email. Inténtalo de nuevo en unos minutos'],
   ['Error sending magic link email', 'No se pudo enviar el email. Inténtalo de nuevo en unos minutos'],
+  ['Token has expired or is invalid', 'El código no es válido o ha caducado. Pide uno nuevo'],
+  ['Invalid token', 'El código no es válido. Revísalo e inténtalo de nuevo'],
+  ['Email link is invalid or has expired', 'El código ha caducado. Pide uno nuevo'],
 ]
 
 export function translateError(message: string, fallback: string): string {

@@ -10,7 +10,10 @@ export interface AuthContextValue {
   household: Household | null
   /** Set when the household lookup itself failed (as opposed to the user having none). */
   householdError: string | null
+  /** Email the user a one-time sign-in code. */
   signInWithEmail: (email: string) => Promise<void>
+  /** Exchange the emailed code for a session. */
+  verifyCode: (email: string, code: string) => Promise<void>
   signOut: () => Promise<void>
   /** Re-fetch the household (e.g. right after onboarding creates it). */
   refreshHousehold: () => Promise<void>
