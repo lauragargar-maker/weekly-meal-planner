@@ -78,10 +78,20 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [userId, sessionResolved, fetchHousehold])
 
+  // No `emailRedirectTo`: the user types the code from the email instead of
+  // following a link. On iOS the app is usually a home-screen shortcut, and a
+  // link opens in Safari, landing the session in Safari's storage — so the
+  // shortcut could never sign in. A code never leaves the app.
   const signInWithEmail = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithOtp({ email })
+    if (error) throw error
+  }, [])
+
+  const verifyCode = useCallback(async (email: string, code: string) => {
+    const { error } = await supabase.auth.verifyOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      token: code,
+      type: 'email',
     })
     if (error) throw error
   }, [])
@@ -103,10 +113,11 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       household,
       householdError,
       signInWithEmail,
+      verifyCode,
       signOut,
       refreshHousehold,
     }),
-    [sessionResolved, householdResolved, session, household, householdError, signInWithEmail, signOut, refreshHousehold]
+    [sessionResolved, householdResolved, session, household, householdError, signInWithEmail, verifyCode, signOut, refreshHousehold]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
