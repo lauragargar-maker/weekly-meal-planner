@@ -13,6 +13,27 @@ sin salida.
 
 ---
 
+## Estado
+
+| | Estado |
+|---|---|
+| M7 — código de familia de 6 dígitos | **En producción** (PR #9, ago 2026) |
+| M8 — login por código | **En producción** (PR #9, ago 2026) |
+| M1, M2, M2b, M4, M5, M6, M9, M10 | Pendientes |
+
+Siguiente bloque de trabajo: **M1 → M2 → M2b** es la cadena larga y la que más valor
+trae; **M5 → M10** es independiente y barata; **M4, M6 y M9** esperan a las specs de
+Claude Design (`docs/brief-claude-design.md`).
+
+> **Aviso operativo tras M8.** Las plantillas de correo de producción ya **no**
+> contienen `{{ .ConfirmationURL }}`: solo mandan el código. Eso significa que
+> **revertir el frontend ya no es seguro** — una versión anterior de la app espera un
+> enlace que el correo no manda, y nadie podría entrar. Si hiciera falta volver atrás,
+> hay que restaurar antes el `{{ .ConfirmationURL }}` en las dos plantillas
+> (*Magic Link* y *Confirm signup*).
+
+---
+
 ## Lo que dijeron las entrevistas
 
 Cinco de las seis peticiones marcadas como must-have por las usuarias son **la misma
@@ -357,7 +378,7 @@ una "nav inferior" que ninguna spec llegó a describir.
 
 Tamaño: M. Depende de: diseño (ver abajo).
 
-### M7 — Código de familia corto
+### M7 — Código de familia corto ✅ en producción
 
 Hoy son 8 caracteres alfanuméricos generados por el `DEFAULT` de la columna
 (`upper(substr(md5(gen_random_uuid()::text), 1, 8))`, migración `20260711130000`).
@@ -379,7 +400,7 @@ Si en el futuro hace falta escalar, la salida es pedir nombre de familia + códi
 
 Tamaño: S. Depende de: nada.
 
-### M8 — Login por OTP (arregla el acceso directo en iOS)
+### M8 — Login por OTP (arregla el acceso directo en iOS) ✅ en producción
 
 Al añadir ¡Ñam! a la pantalla de inicio de un iPhone, el magic link abre Safari, la
 sesión aterriza en el almacenamiento de Safari y **el acceso directo nunca llega a
@@ -396,6 +417,20 @@ plantilla de correo de Supabase:
 
 El método del SDK no cambia. Nota: el evento `login_link_requested` se queda con
 nombre inexacto; se mantiene para no romper la continuidad de la serie en Amplitude.
+
+**Configuración de Supabase que acompaña a esto**, por si hay que reproducirla:
+
+- Son **dos** plantillas, no una. `signInWithOtp` usa *Magic Link* para usuarios que
+  ya existen y ***Confirm signup* para los nuevos** — que son todas las familias que
+  entren en la beta. Cambiar solo la primera deja fuera a todo el mundo menos a quien
+  ya tuviera cuenta.
+- `verifyOtp` se llama con `type: 'email'`, que sirve a los dos casos. La trampa
+  habitual es `type: 'magiclink'`, que funciona con usuarios existentes y falla con
+  los nuevos.
+- Longitud del OTP en 6 (el campo de la app tiene `maxLength={6}`) y caducidad corta:
+  un código de 6 dígitos es mucho más adivinable que un token largo de URL.
+- Vigilar el límite de envío de emails por hora antes de meter a varias familias
+  a la vez; el error ya está traducido en `errorMessages.ts`.
 
 Tamaño: S. Depende de: nada.
 
