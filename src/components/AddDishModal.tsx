@@ -88,7 +88,20 @@ export default function AddDishModal({
       (d) => d.id !== dish?.id && d.name.toLowerCase() === trimmedName.toLowerCase()
     )
   const canProceed = trimmedName !== '' && !isDuplicate
-  const canSubmit = isCatalog ? canProceed : canProceed && mode !== null
+
+  /**
+   * A dish that is going to be stored needs at least one ingredient. Without one
+   * it is invisible to every rule — it can never be the fish of the week or the
+   * vegetable of a dinner — while still counting towards the catalogue's totals,
+   * so the household is told it has enough dishes and gets a menu that ignores
+   * what it asked for.
+   *
+   * Not required for `instance`, which only writes a name into the week's menu
+   * and never reaches the catalogue; those never show the ingredient chips at all.
+   */
+  const willBeStored = isCatalog || mode === 'persist'
+  const needsIngredients = willBeStored && mainIngredients.length === 0
+  const canSubmit = (isCatalog ? canProceed : canProceed && mode !== null) && !needsIngredients
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value)
@@ -186,12 +199,17 @@ export default function AddDishModal({
   const IngredientGroup = () => (
     <div className="mt-[18px] lg:mt-5">
       <p className="label-nam" id="group-ingredients">
-        Ingredientes (opcional)
+        Ingredientes
       </p>
       <p className="help-nam !mt-0 mb-2">
         Marca todos los que lleve: la lasaña es pasta y carne.
       </p>
-      <div className="flex flex-wrap gap-2" role="group" aria-labelledby="group-ingredients">
+      <div
+        className="flex flex-wrap gap-2"
+        role="group"
+        aria-labelledby="group-ingredients"
+        aria-describedby={needsIngredients ? 'ingredients-required' : undefined}
+      >
         {INGREDIENTS.map((option) => {
           const selected = mainIngredients.includes(option.value)
           return (
@@ -208,6 +226,13 @@ export default function AddDishModal({
           )
         })}
       </div>
+      {/* Says why the CTA is dead instead of leaving the user to guess. Not
+          `role="alert"`: nothing has gone wrong, the form is just incomplete. */}
+      {needsIngredients && (
+        <p id="ingredients-required" className="help-nam !text-rojo-500">
+          Elige al menos uno. Sin ingredientes, el plato no entra en ninguna regla.
+        </p>
+      )}
     </div>
   )
 
