@@ -41,7 +41,7 @@ independiente y barato. **M6 y M9** siguen esperando specs de Claude Design
 
 ### Despliegue pendiente
 
-Tres migraciones sin ejecutar, en este orden y **cada una primero en dev**
+Cuatro migraciones sin ejecutar, en este orden y **cada una primero en dev**
 (son dos proyectos de Supabase distintos; ver `supabase/migrations/README.md`):
 
 1. `20260804000000_dish_main_ingredients.sql` — parchea 32 nombres. Espera tocar
@@ -51,6 +51,10 @@ Tres migraciones sin ejecutar, en este orden y **cada una primero en dev**
    número no cuadra, los nombres han vuelto a divergir.
 2. `20260805000000_household_rules.sql` — sólo añade la columna.
 3. `20260806000000_validate_invite_code.sql` — sólo añade la función.
+4. `20260807000000_dish_ingredients_required.sql` — obliga a que todo plato
+   tenga al menos un ingrediente. **Se niega a ejecutarse si queda alguno sin
+   etiquetar, y dice cuáles**. Producción sale limpia de la migración 1; dev
+   conserva platos de prueba sin etiqueta y hay que limpiarlos antes.
 
 **La 1 y la 3 van junto con el frontend, no antes ni después.** La 1 borra la columna
 que la app antigua escribe, y la app nueva escribe la que la migración crea: en
