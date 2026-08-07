@@ -21,8 +21,8 @@ import { PRODUCTION_CATALOG } from './__fixtures__/productionCatalog'
 
 const RUNS = 25
 
-// 2026-08-01 is a Saturday, which is where the app still starts its weeks.
-const WEEK_START = new Date(2026, 7, 1)
+// 2026-08-03 is a Monday, which is where the app starts its weeks.
+const WEEK_START = new Date(2026, 7, 3)
 
 const toDish = (dish: NewDishIdea, index: number): DishIdea => ({
   ...dish,

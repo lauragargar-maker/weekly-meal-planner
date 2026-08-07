@@ -16,10 +16,16 @@
  */
 export const WEEK_RANGE = { min: -1, max: 1 }
 
-/** Return the Saturday that starts the week period (Sat–Fri) containing `from`. */
+/**
+ * Return the Monday that starts the week (Mon–Sun) containing `from`.
+ *
+ * Weeks used to start on Saturday so the Friday shop could cover the week
+ * ahead; being able to see next week at any time replaced that need. Almost
+ * every Spanish household counts the week from Monday.
+ */
 export const getCurrentWeekStart = (from: Date = new Date()): Date => {
   const dayOfWeek = from.getDay() // 0=Sun … 6=Sat
-  const daysBack = (dayOfWeek + 1) % 7 // Sat=0, Sun=1, Mon=2, … Fri=6
+  const daysBack = (dayOfWeek + 6) % 7 // Mon=0, Tue=1, … Sat=5, Sun=6
   const start = new Date(from)
   start.setDate(from.getDate() - daysBack)
   start.setHours(0, 0, 0, 0)

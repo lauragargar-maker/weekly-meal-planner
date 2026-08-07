@@ -1,5 +1,15 @@
 name: Generate Weekly Menu
 
+# DISABLED, and not just paused by neglect: it is switched off in the GitHub UI
+# (`gh workflow list` reports disabled_manually), and its last scheduled runs
+# failed anyway.
+#
+# Do not re-enable without fixing the two edge functions it calls. They are
+# single-tenant, they carry their own stale copy of the generator, and they
+# still compute a Saturday `week_start` — the app moved to Monday weeks. The
+# Friday schedule below also existed to prepare the Saturday week and no longer
+# means anything.
+
 on:
   schedule:
     # Run every Friday at 8 AM UTC

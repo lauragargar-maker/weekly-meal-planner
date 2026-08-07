@@ -766,8 +766,8 @@ export function generateWeeklyMenu({
 }
 
 /**
- * Formats a date to display as day name
- * Week starts on Saturday (day 6)
+ * Formats a date to display as day name. Indexed by `getDay()`, so it is
+ * independent of which weekday opens the week.
  */
 export function formatDayName(date: string): string {
   const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
