@@ -56,9 +56,15 @@ Cuatro migraciones sin ejecutar, en este orden y **cada una primero en dev**
    etiquetar, y dice cuáles**. Producción sale limpia de la migración 1; dev
    conserva platos de prueba sin etiqueta y hay que limpiarlos antes.
 
-**La 1 y la 3 van junto con el frontend, no antes ni después.** La 1 borra la columna
-que la app antigua escribe, y la app nueva escribe la que la migración crea: en
-cualquier orden hay una ventana en la que guardar un plato falla. Sin la 3, nadie
+**Las migraciones van SIEMPRE antes de mergear la PR.** En este proyecto el frontend lo
+despliega **Vercel automáticamente al mergear a `main`**: el merge *es* el despliegue, y
+después ya no hay ventana de control. No se ve en el repo — el único workflow de
+`.github/workflows/` es el cron de menús, pausado.
+
+Por qué ese orden y no el contrario: la app nueva pide la columna `rules` al cargar el
+hogar, así que desplegarla antes de la migración 2 rompería el acceso **para todo el
+mundo**. Al revés el daño es mucho menor — durante la ventana, la app antigua sólo falla
+al guardar un plato, porque la migración 1 borra la columna que escribe. Sin la 3, nadie
 puede pasar de la pantalla de crear hogar.
 
 **Al desplegar, los menús de los hogares existentes cambian**: la regla de "no repetir
