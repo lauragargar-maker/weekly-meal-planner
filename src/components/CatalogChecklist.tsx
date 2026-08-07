@@ -1,9 +1,21 @@
 import { DishIdea } from '../types'
+import { HouseholdRules } from '../lib/householdRules'
 import { getCatalogRequirements } from '../utils/catalogCheck'
 
-/** Shows which minimums the dish catalog still misses to generate a full week. */
-export default function CatalogChecklist({ dishIdeas }: { dishIdeas: DishIdea[] }) {
-  const requirements = getCatalogRequirements(dishIdeas)
+/**
+ * Shows which minimums the dish catalog still misses to generate a full week.
+ *
+ * The list depends on the household's rules, so it changes when they do: turning
+ * on two-course dinners adds a line that was not there a moment ago.
+ */
+export default function CatalogChecklist({
+  dishIdeas,
+  rules,
+}: {
+  dishIdeas: DishIdea[]
+  rules?: HouseholdRules
+}) {
+  const requirements = getCatalogRequirements(dishIdeas, rules)
   const allMet = requirements.every((req) => req.met)
 
   return (
@@ -33,6 +45,14 @@ export default function CatalogChecklist({ dishIdeas }: { dishIdeas: DishIdea[] 
               {req.have}/{req.need}
             </span>
           </li>
+        ))}
+        {requirements
+          .filter((req) => !req.met && req.hint)
+          .slice(0, 1)
+          .map((req) => (
+            <li key={`${req.label}-hint`} className="text-[13px] font-bold font-sans text-tinta-500">
+              {req.hint}
+            </li>
         ))}
       </ul>
       {allMet && (

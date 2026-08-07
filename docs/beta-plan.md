@@ -19,11 +19,18 @@ sin salida.
 |---|---|
 | M7 — código de familia de 6 dígitos | **En producción** (PR #9, ago 2026) |
 | M8 — login por código | **En producción** (PR #9, ago 2026) |
-| M1, M2, M2b, M4, M5, M6, M9, M10 | Pendientes |
+| M1 — clasificación de platos | **En código, sin desplegar** (ago 2026) |
+| M2 — reglas por hogar | **En código, sin desplegar** (ago 2026) |
+| M2b — consecuencias | **En código**, salvo el override manual → aplazado a M6 |
+| M4 — poda del catálogo en el onboarding | **En código**, resuelto al implementar el onboarding v2 |
+| M5, M6, M9, M10 | Pendientes |
 
-Siguiente bloque de trabajo: **M1 → M2 → M2b** es la cadena larga y la que más valor
-trae; **M5 → M10** es independiente y barata; **M4, M6 y M9** esperan a las specs de
-Claude Design (`docs/brief-claude-design.md`).
+**"En código, sin desplegar" quiere decir exactamente eso**: hay tres migraciones sin
+ejecutar y el frontend sin subir. Ver "Despliegue pendiente" más abajo.
+
+Siguiente bloque de trabajo: desplegar lo que ya está hecho; luego **M5 → M10**, que es
+independiente y barato. **M6 y M9** siguen esperando specs de Claude Design
+(`docs/brief-claude-design.md`).
 
 > **Aviso operativo tras M8.** Las plantillas de correo de producción ya **no**
 > contienen `{{ .ConfirmationURL }}`: solo mandan el código. Eso significa que
@@ -31,6 +38,29 @@ Claude Design (`docs/brief-claude-design.md`).
 > enlace que el correo no manda, y nadie podría entrar. Si hiciera falta volver atrás,
 > hay que restaurar antes el `{{ .ConfirmationURL }}` en las dos plantillas
 > (*Magic Link* y *Confirm signup*).
+
+### Despliegue pendiente
+
+Tres migraciones sin ejecutar, en este orden y **cada una primero en dev**
+(son dos proyectos de Supabase distintos; ver `supabase/migrations/README.md`):
+
+1. `20260804000000_dish_main_ingredients.sql` — parchea 32 nombres. Espera tocar
+   ~123 filas en dev y **exactamente 13 en producción**. Para comprobarlo hay una
+   consulta de verificación al final del propio archivo: **el SQL Editor de
+   Supabase no muestra los `RAISE NOTICE`**, sólo resultados de consulta. Si el
+   número no cuadra, los nombres han vuelto a divergir.
+2. `20260805000000_household_rules.sql` — sólo añade la columna.
+3. `20260806000000_validate_invite_code.sql` — sólo añade la función.
+
+**La 1 y la 3 van junto con el frontend, no antes ni después.** La 1 borra la columna
+que la app antigua escribe, y la app nueva escribe la que la migración crea: en
+cualquier orden hay una ventana en la que guardar un plato falla. Sin la 3, nadie
+puede pasar de la pantalla de crear hogar.
+
+**Al desplegar, los menús de los hogares existentes cambian**: la regla de "no repetir
+el grupo de proteína" pasa a estar activa por defecto, donde antes sólo se cruzaban
+pescado y huevo. Está medido contra el catálogo real del hogar fundador: 0 caídas al
+menú básico en 200 semanas, de media 2,1 intentos.
 
 ---
 
@@ -312,6 +342,24 @@ Tamaño: L. Depende de: M1.
    cambio puntual en modo edición es UI. Cubre el punto 5 del backlog del rediseño
    (pasar de plato único a primero + segundo) y la petición de Erika de elegir el
    segundo plato de la comida.
+
+   > **Aplazado a M6** (decidido ago 2026). Es lo único de M2b que queda sin hacer.
+   > Vive en la misma superficie que M6 —la tarjeta del día y su modo de edición—
+   > así que resolverlo antes obligaría a rehacerlo cuando M6 cambie esa tarjeta.
+   >
+   > Al retomarlo, tres cosas que M2 ha cambiado desde que se escribió esto:
+   >
+   > - **La conversión ya existe, escondida y a medias.** En `updateMenuItem`
+   >   (`App.tsx`), elegir un plato de categoría `main` desde un hueco `single` lo
+   >   convierte y **añade un primero al azar**. Nadie pidió convertir nada y el
+   >   primero no se elige. No es sólo que falte la función: hay un comportamiento
+   >   oculto que sorprende y que habría que quitar o hacer explícito.
+   > - **Ahora es simétrico.** Con `dinnerCourses` configurable, el override va en
+   >   las dos direcciones y en las dos comidas: partir una comida en dos, juntar
+   >   una cena de dos en una.
+   > - **La decisión de producto sigue abierta**: al partir un día, ¿el primero lo
+   >   elige el usuario o lo sigue sorteando la app? Sortearlo es lo que hace hoy y
+   >   es justo lo que molesta; elegirlo son dos interacciones en vez de una.
 4. **El fallback tiene que dejar de ser silencioso.** Cuando `generateWeeklyMenu`
    agota sus 200 intentos cae a `generateBasicMenu` (`menuGenerator.ts:561`), que
    ignora casi todas las reglas, y solo deja un `console.warn`. El usuario recibe un
@@ -321,6 +369,28 @@ Tamaño: L. Depende de: M1.
    configurables y varios ingredientes por plato, **los usuarios crearán
    combinaciones imposibles**: es cuestión de tiempo, no de si pasa. El generador debe
    devolver qué regla no ha podido cumplir y la UI debe decirlo.
+
+5. **Aviso al activar una regla que el catálogo no puede cumplir.** Es el punto 4
+   trasladado al momento en que se toma la decisión, en «Familia → Ajustes de la
+   casa»: si el hogar activa una regla que sus platos actuales no pueden
+   satisfacer, hay que decírselo **ahí mismo**, no esperar a que el menú salga
+   degradado la semana siguiente.
+
+   Medido sobre datos reales (ago 2026), no es teórico:
+
+   - **El hogar de Laura no puede dar cenas de dos platos.** Necesita siete
+     primeros distintos aptos para cena y tiene uno («Judías verdes», además sólo
+     entre semana): sus otros primeros están todos marcados `comida`. Activar la
+     regla hoy produce 100 de 100 caídas al menú básico, en silencio.
+   - **«Primero y segundo» chocaba con la legumbre.** En la cocina española la
+     legumbre es plato único, así que todos los platos de legumbre del catálogo
+     semilla eran `single` y un hogar que siempre come dos platos no podía recibir
+     ninguno — la configuración de Erika. Parcheado en corto pasando «Lentejas con
+     verduras» a `segundo`; la solución de fondo es más segundos de legumbre o que
+     el generador acepte un `single` como segundo cuando no hay alternativa.
+
+   El aviso necesita lo mismo que el punto 1: un `catalogCheck` consciente de las
+   reglas. La diferencia es dónde se enseña.
 
 Tamaño: M. Depende de: M2.
 
@@ -375,6 +445,12 @@ Las dos usuarias intentaron pinchar en el día para editarlo. Y el logotipo como
 de vuelta (punto 2 del backlog del rediseño) ya falló en las pruebas de Laura; con
 desconocidos es soporte garantizado. `design-tokens.md` §6 ya reserva un z-index para
 una "nav inferior" que ninguna spec llegó a describir.
+
+**Absorbe el punto 3 de M2b**, el override manual "hoy quiero dos platos", aplazado
+aquí a propósito: toca la misma tarjeta de día que M6 rediseña. Los detalles y la
+decisión abierta están anotados en M2b; al pedir diseño para M6 hay que incluirlo,
+porque la acción explícita ("Quiero primero y segundo") necesita un sitio en esa
+tarjeta o en su sheet.
 
 Tamaño: M. Depende de: diseño (ver abajo).
 
@@ -494,7 +570,10 @@ usuarios.
   el onboarding rediseñado no puede crear hogares. Ya estaba señalado como pregunta
   abierta de la Fase 6.
 - **M6**: edición por tap en el día y navegación explícita de tres destinos
-  (Semana / Platos / Familia).
+  (Semana / Platos / Familia). **Incluir en el encargo el override manual de M2b**:
+  la acción explícita "Quiero primero y segundo" (y su inversa para la cena)
+  necesita un sitio en la tarjeta del día o en su sheet, y hay que decidir si el
+  primero lo elige el usuario o lo sortea la app.
 - **M9**: propuesta para el botón de feedback en móvil.
 
 No hace falta pedir: **"Ajustes de la casa"** ya está diseñado en `familia.md` §4; se

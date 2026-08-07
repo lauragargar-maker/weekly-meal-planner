@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { DishIdea, NewDishIdea } from '../types'
+import { DishIdea, Ingredient, NewDishIdea } from '../types'
+import { INGREDIENTS } from '../lib/ingredients'
 
 interface AddDishModalProps {
   /** 'menu' picks a dish for a meal slot; 'catalog' creates or edits a catalogue dish. */
@@ -38,15 +39,6 @@ const MEAL_TYPES: { value: DishIdea['meal_type']; label: string }[] = [
   { value: 'both', label: 'Ambas' },
 ]
 
-const INGREDIENTS: { value: string; label: string }[] = [
-  { value: 'pasta', label: 'Pasta' },
-  { value: 'meat', label: 'Carne' },
-  { value: 'fish', label: 'Pescado' },
-  { value: 'egg', label: 'Huevo' },
-  { value: 'legume', label: 'Legumbre' },
-  { value: 'vegetable', label: 'Verdura' },
-]
-
 export default function AddDishModal({
   variant = 'menu',
   slot = 'main',
@@ -66,7 +58,7 @@ export default function AddDishModal({
   const [category, setCategory] = useState<'starter' | 'main' | 'single'>(dish?.category ?? slot)
   const [formMealType, setFormMealType] = useState<'lunch' | 'dinner' | 'both'>(dish?.meal_type ?? mealType)
   const [dayType, setDayType] = useState<'weekday' | 'weekendday' | 'anyday'>(dish?.day_type ?? 'anyday')
-  const [mainIngredient, setMainIngredient] = useState<string>(dish?.main_ingredient ?? '')
+  const [mainIngredients, setMainIngredients] = useState<Ingredient[]>(dish?.main_ingredients ?? [])
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const cancelDeleteRef = useRef<HTMLButtonElement>(null)
@@ -108,8 +100,18 @@ export default function AddDishModal({
     category,
     meal_type: formMealType,
     day_type: dayType,
-    main_ingredient: mainIngredient ? (mainIngredient as DishIdea['main_ingredient']) : undefined,
+    // Kept in the canonical order rather than the order they were tapped in.
+    main_ingredients: INGREDIENTS.filter(({ value }) => mainIngredients.includes(value)).map(
+      ({ value }) => value
+    ),
   })
+
+  const toggleIngredient = (ingredient: Ingredient) =>
+    setMainIngredients((current) =>
+      current.includes(ingredient)
+        ? current.filter((value) => value !== ingredient)
+        : [...current, ingredient]
+    )
 
   const handleSubmit = () => {
     if (!canSubmit) return
@@ -124,19 +126,17 @@ export default function AddDishModal({
     }
   }
 
-  /** Chips behaving as a radio group. Passing null as value clears the selection. */
+  /** Chips behaving as a radio group: exactly one option is selected. */
   const ChipGroup = <T extends string>({
     label,
     options,
     value,
     onChange,
-    clearable,
   }: {
     label: string
     options: { value: T; label: string }[]
-    value: T | ''
-    onChange: (v: T | '') => void
-    clearable?: boolean
+    value: T
+    onChange: (v: T) => void
   }) => (
     <div className="mt-[18px] lg:mt-5">
       <p className="label-nam" id={`group-${label}`}>
@@ -166,10 +166,43 @@ export default function AddDishModal({
               type="button"
               role="radio"
               aria-checked={selected}
-              tabIndex={selected || (value === '' && option === options[0]) ? 0 : -1}
-              onClick={() => onChange(clearable && selected ? '' : option.value)}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onChange(option.value)}
               className={`chip focus:ring-offset-0 ${selected ? 'chip-on' : '!bg-crema-100 lg:!bg-white'}`}
             >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  /**
+   * Ingredients are multi-select since M1 — a lasagna is pasta and meat — so
+   * this is a plain group of toggles, not a radiogroup: no arrow-key roving, and
+   * `aria-pressed` instead of `aria-checked`.
+   */
+  const IngredientGroup = () => (
+    <div className="mt-[18px] lg:mt-5">
+      <p className="label-nam" id="group-ingredients">
+        Ingredientes (opcional)
+      </p>
+      <p className="help-nam !mt-0 mb-2">
+        Marca todos los que lleve: la lasaña es pasta y carne.
+      </p>
+      <div className="flex flex-wrap gap-2" role="group" aria-labelledby="group-ingredients">
+        {INGREDIENTS.map((option) => {
+          const selected = mainIngredients.includes(option.value)
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => toggleIngredient(option.value)}
+              className={`chip focus:ring-offset-0 ${selected ? 'chip-on' : '!bg-crema-100 lg:!bg-white'}`}
+            >
+              {selected && <span aria-hidden="true">✓</span>}
               {option.label}
             </button>
           )
@@ -263,16 +296,10 @@ export default function AddDishModal({
 
         {(isCatalog || mode === 'persist') && (
           <>
-            <ChipGroup label="Tipo de plato" options={CATEGORIES} value={category} onChange={(v) => v && setCategory(v)} />
-            <ChipGroup label="¿Cuándo se come?" options={DAY_TYPES} value={dayType} onChange={(v) => v && setDayType(v)} />
-            <ChipGroup label="Momento del día" options={MEAL_TYPES} value={formMealType} onChange={(v) => v && setFormMealType(v)} />
-            <ChipGroup
-              label="Ingrediente principal (opcional)"
-              options={INGREDIENTS}
-              value={mainIngredient}
-              onChange={(v) => setMainIngredient(v)}
-              clearable
-            />
+            <ChipGroup label="Tipo de plato" options={CATEGORIES} value={category} onChange={setCategory} />
+            <ChipGroup label="¿Cuándo se come?" options={DAY_TYPES} value={dayType} onChange={setDayType} />
+            <ChipGroup label="Momento del día" options={MEAL_TYPES} value={formMealType} onChange={setFormMealType} />
+            <IngredientGroup />
           </>
         )}
 

@@ -1,3 +1,10 @@
+-- Original bootstrap schema, kept for history. It predates multi-tenancy: the
+-- policies below are replaced wholesale by 20260711000000_multi_tenant_households
+-- and the tables gain a NOT NULL household_id there.
+--
+-- The migrations in supabase/migrations/ are the source of truth. Running this
+-- file against a live database would not reproduce it.
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -7,7 +14,8 @@ CREATE TABLE IF NOT EXISTS dish_ideas (
   name TEXT NOT NULL,
   category TEXT NOT NULL CHECK (category IN ('starter', 'main', 'single')),
   meal_type TEXT NOT NULL CHECK (meal_type IN ('lunch', 'dinner', 'both')),
-  main_ingredient TEXT CHECK (main_ingredient IN ('pasta', 'meat', 'fish', 'egg', 'legume', 'vegetable')),
+  main_ingredients TEXT[] NOT NULL DEFAULT '{}'
+    CHECK (main_ingredients <@ ARRAY['pasta', 'rice', 'potato', 'meat', 'fish', 'egg', 'legume', 'vegetable']::TEXT[]),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -26,7 +34,6 @@ CREATE TABLE IF NOT EXISTS weekly_menus (
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_dish_ideas_category ON dish_ideas(category);
 CREATE INDEX IF NOT EXISTS idx_dish_ideas_meal_type ON dish_ideas(meal_type);
-CREATE INDEX IF NOT EXISTS idx_dish_ideas_main_ingredient ON dish_ideas(main_ingredient);
 CREATE INDEX IF NOT EXISTS idx_weekly_menus_week_start ON weekly_menus(week_start);
 
 -- Function to update updated_at timestamp
@@ -90,32 +97,10 @@ CREATE POLICY "Anyone can insert weekly menus" ON weekly_menus
 CREATE POLICY "Anyone can update weekly menus" ON weekly_menus
   FOR UPDATE USING (true);
 
--- Insert sample dish ideas (for initial setup)
-INSERT INTO dish_ideas (name, category, meal_type, main_ingredient) VALUES
-  -- Starters
-  ('Caesar Salad', 'starter', 'both', 'vegetable'),
-  ('Minestrone Soup', 'starter', 'lunch', 'vegetable'),
-  ('Bruschetta', 'starter', 'both', 'vegetable'),
-  ('Caprese Salad', 'starter', 'lunch', 'vegetable'),
-  ('Gazpacho', 'starter', 'lunch', 'vegetable'),
-  
-  -- Main courses
-  ('Grilled Chicken Breast', 'main', 'both', 'meat'),
-  ('Pasta Carbonara', 'main', 'both', 'pasta'),
-  ('Salmon Fillet', 'main', 'both', 'fish'),
-  ('Beef Steak', 'main', 'both', 'meat'),
-  ('Vegetable Stir Fry', 'main', 'both', 'vegetable'),
-  ('Pork Chops', 'main', 'dinner', 'meat'),
-  ('Fish Tacos', 'main', 'dinner', 'fish'),
-  ('Risotto', 'main', 'dinner', 'pasta'),
-  ('Lasagna', 'main', 'dinner', 'pasta'),
-  ('Chicken Curry', 'main', 'dinner', 'meat'),
-  
-  -- Single course meals
-  ('Quiche Lorraine', 'single', 'lunch', 'egg'),
-  ('Chicken Wrap', 'single', 'lunch', 'meat'),
-  ('Vegetarian Burger', 'single', 'lunch', 'vegetable'),
-  ('Falafel Bowl', 'single', 'lunch', 'legume'),
-  ('Poke Bowl', 'single', 'lunch', 'fish')
-ON CONFLICT DO NOTHING;
+-- The sample dishes that used to live here have been removed: they were the
+-- English placeholders of the original template, and the INSERT could no longer
+-- run anyway once household_id became NOT NULL.
+--
+-- New households get their dishes from src/data/starterCatalog.ts, copied into
+-- per-household rows during onboarding.
 
