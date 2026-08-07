@@ -212,8 +212,12 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
         key={day}
         className="rounded-card border-2 border-crema-300 bg-white p-5 transition-transform duration-180 hover:-translate-y-0.5 hover:shadow-pop"
       >
-        <h3 className="text-xl font-extrabold">{formatDayName(day)}</h3>
-        <p className="text-sm font-bold font-sans text-tinta-500">{dayNumber(day)}</p>
+        {/* One line, like every other card: the day name and its number are read
+            as one label ("Sábado 8"), and splitting them across two block
+            elements made next week look like a different screen from this one. */}
+        <h3 className="text-xl font-extrabold">
+          {formatDayName(day)} {dayNumber(day)}
+        </h3>
         <div className="mt-3.5">
           <MealBlock item={lunch} mealType="lunch" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
         </div>
