@@ -28,6 +28,15 @@ el entorno donde se vaya a ejecutar, antes de ejecutarla. `20260804000000_dish_m
 es el ejemplo: lleva en el encabezado la consulta de comprobación y emite un `NOTICE` con
 el número de filas que tocó, para poder contrastarlo con lo esperado.
 
+## El merge es el despliegue
+
+El frontend lo despliega **Vercel automáticamente al mergear la PR a `main`**. No hay
+paso manual ni workflow que lo haga: el único de `.github/workflows/` es el cron de
+menús semanales, que está pausado.
+
+Consecuencia práctica: **una migración incompatible con el frontend hay que ejecutarla
+antes de mergear.** Después ya no hay ventana de control.
+
 ## Migración y frontend van juntos
 
 Varias migraciones cambian la forma de una columna que el frontend lee o escribe. En esos

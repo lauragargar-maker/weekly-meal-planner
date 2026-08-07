@@ -19,18 +19,15 @@ sin salida.
 |---|---|
 | M7 — código de familia de 6 dígitos | **En producción** (PR #9, ago 2026) |
 | M8 — login por código | **En producción** (PR #9, ago 2026) |
-| M1 — clasificación de platos | **En código, sin desplegar** (ago 2026) |
-| M2 — reglas por hogar | **En código, sin desplegar** (ago 2026) |
-| M2b — consecuencias | **En código**, salvo el override manual → aplazado a M6 |
-| M4 — poda del catálogo en el onboarding | **En código**, resuelto al implementar el onboarding v2 |
+| M1 — clasificación de platos | **En producción** (PR #11, ago 2026) |
+| M2 — reglas por hogar | **En producción** (PR #11, ago 2026) |
+| M2b — consecuencias | **En producción** (PR #11), salvo el override manual → aplazado a M6 |
+| M4 — poda del catálogo en el onboarding | **En producción** (PR #11), resuelto por el onboarding v2 |
 | M5, M6, M9, M10 | Pendientes |
 
-**"En código, sin desplegar" quiere decir exactamente eso**: hay tres migraciones sin
-ejecutar y el frontend sin subir. Ver "Despliegue pendiente" más abajo.
-
-Siguiente bloque de trabajo: desplegar lo que ya está hecho; luego **M5 → M10**, que es
-independiente y barato. **M6 y M9** siguen esperando specs de Claude Design
-(`docs/brief-claude-design.md`).
+Siguiente bloque de trabajo: **M5 → M10**, que es independiente y barato. **M6 y M9**
+siguen esperando specs de Claude Design (`docs/brief-claude-design.md`), y M6 arrastra
+además el override manual de M2b.
 
 > **Aviso operativo tras M8.** Las plantillas de correo de producción ya **no**
 > contienen `{{ .ConfirmationURL }}`: solo mandan el código. Eso significa que
@@ -39,32 +36,35 @@ independiente y barato. **M6 y M9** siguen esperando specs de Claude Design
 > hay que restaurar antes el `{{ .ConfirmationURL }}` en las dos plantillas
 > (*Magic Link* y *Confirm signup*).
 
-### Despliegue pendiente
+### Cómo se despliega en este proyecto
 
-Cuatro migraciones sin ejecutar, en este orden y **cada una primero en dev**
-(son dos proyectos de Supabase distintos; ver `supabase/migrations/README.md`):
+**El frontend lo publica Vercel automáticamente al mergear a `main`.** El merge *es* el
+despliegue, y después ya no hay ventana de control. No se ve en el repo: el único
+workflow de `.github/workflows/` es el cron de menús, pausado.
 
-1. `20260804000000_dish_main_ingredients.sql` — parchea 32 nombres. Espera tocar
-   ~123 filas en dev y **exactamente 13 en producción**. Para comprobarlo hay una
-   consulta de verificación al final del propio archivo: **el SQL Editor de
-   Supabase no muestra los `RAISE NOTICE`**, sólo resultados de consulta. Si el
-   número no cuadra, los nombres han vuelto a divergir.
-2. `20260805000000_household_rules.sql` — sólo añade la columna.
-3. `20260806000000_validate_invite_code.sql` — sólo añade la función.
-4. `20260807000000_dish_ingredients_required.sql` — obliga a que todo plato
-   tenga al menos un ingrediente. **Se niega a ejecutarse si queda alguno sin
-   etiquetar, y dice cuáles**. Producción sale limpia de la migración 1; dev
-   conserva platos de prueba sin etiqueta y hay que limpiarlos antes.
+De ahí la regla que salió de M1/M2: **una migración de la que dependa el frontend hay
+que ejecutarla antes de mergear**, y primero en dev, que es un proyecto de Supabase
+distinto (ver `supabase/migrations/README.md`).
 
-**La 1 y la 3 van junto con el frontend, no antes ni después.** La 1 borra la columna
-que la app antigua escribe, y la app nueva escribe la que la migración crea: en
-cualquier orden hay una ventana en la que guardar un plato falla. Sin la 3, nadie
-puede pasar de la pantalla de crear hogar.
+Con M1/M2 el orden importaba en una dirección concreta: la app nueva pide la columna
+`rules` al cargar el hogar, así que desplegarla antes de crear la columna habría roto el
+acceso **para todo el mundo**. Al revés, el daño era mucho menor: la app antigua sólo
+fallaba al guardar un plato.
 
-**Al desplegar, los menús de los hogares existentes cambian**: la regla de "no repetir
-el grupo de proteína" pasa a estar activa por defecto, donde antes sólo se cruzaban
-pescado y huevo. Está medido contra el catálogo real del hogar fundador: 0 caídas al
-menú básico en 200 semanas, de media 2,1 intentos.
+Nota operativa: **el SQL Editor de Supabase no muestra los `RAISE NOTICE`**, sólo
+resultados de consulta. Las migraciones que necesiten informar de algo llevan su propia
+consulta de verificación al final del archivo.
+
+> **Aviso operativo tras M1.** La columna `main_ingredient` ya no existe: se sustituyó
+> por `main_ingredients` (array). Igual que con M8, **revertir el frontend ya no es
+> seguro** — la app anterior escribe una columna que no está. Volver atrás exigiría
+> recrearla y repoblarla desde el array, perdiendo los ingredientes secundarios.
+
+**Los menús de los hogares existentes cambiaron al desplegar**: la regla de "no repetir
+el grupo de proteína" pasó a estar activa por defecto, donde antes sólo se cruzaban
+pescado y huevo, y la legumbre pasó de exigirse exactamente una a ser un mínimo. Medido
+contra el catálogo real del hogar fundador antes de subirlo: 0 caídas al menú básico en
+200 semanas, de media 2,1 intentos.
 
 ---
 
