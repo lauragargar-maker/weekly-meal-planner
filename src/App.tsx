@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { useAuth } from './lib/auth-context'
 import { WeeklyMenu, DishIdea, NewDishIdea, Household } from './types'
@@ -9,6 +9,8 @@ import CatalogChecklist from './components/CatalogChecklist'
 import FeedbackButton from './components/FeedbackButton'
 import { generateWeeklyMenu } from './utils/menuGenerator'
 import { isCatalogReady } from './utils/catalogCheck'
+import { parseRules } from './lib/householdRules'
+import { describeDegradedMenu } from './lib/degradedMenu'
 import { STARTER_CATALOG } from './data/starterCatalog'
 import { SETTINGS } from './config'
 import { identifyHousehold, trackEvent } from './lib/analytics'
@@ -55,6 +57,17 @@ function Wordmark({ as: Tag, onClick }: { as: 'h1' | 'div'; onClick: () => void 
 function App({ household }: { household: Household }) {
   const { session } = useAuth()
   const householdId = household.id
+  // Re-parsed whenever the stored value changes, which is what makes "Regenerar
+  // esta semana" pick up a rule the user just edited.
+  const rules = useMemo(() => parseRules(household.rules), [household.rules])
+
+  // The realtime effect below subscribes once per household and must not be torn
+  // down every time a setting changes. Reading the rules through a ref keeps it
+  // from generating a menu with whatever they were on first render.
+  const rulesRef = useRef(rules)
+  useEffect(() => {
+    rulesRef.current = rules
+  }, [rules])
   const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
   const [nextWeekMenu, setNextWeekMenu] = useState<WeeklyMenu | null>(null)
   const [weekOffset, setWeekOffset] = useState<0 | 1>(0)
@@ -64,6 +77,7 @@ function App({ household }: { household: Household }) {
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [view, setView] = useState<'agenda' | 'catalog' | 'family'>('agenda')
+  const [degraded, setDegraded] = useState<{ title: string; detail: string } | null>(null)
   const isGeneratingMenuRef = useRef(false)
 
   useEffect(() => {
@@ -113,13 +127,23 @@ function App({ household }: { household: Household }) {
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekStart.getDate() + 6)
 
-      const menuItems = generateWeeklyMenu({ dishIdeas: dishes, weekStart })
+      const result = generateWeeklyMenu({ dishIdeas: dishes, weekStart, rules })
+
+      // The menu is saved either way — a degraded week beats no week — but the
+      // household is told, instead of receiving something that breaks the rules
+      // it just set and never hearing about it.
+      setDegraded(result.degraded ? describeDegradedMenu(result.unmet) : null)
+      if (result.degraded) {
+        trackEvent('menu_degraded', {
+          unmet: result.unmet.map((r) => r.label).join(', ') || 'rule_combination',
+        })
+      }
 
       const menuData = {
         household_id: householdId,
         week_start: formatLocalDate(weekStart),
         week_end: formatLocalDate(weekEnd),
-        menu_items: menuItems,
+        menu_items: result.items,
       }
 
       const { data: existingMenu } = await supabase
@@ -190,7 +214,7 @@ function App({ household }: { household: Household }) {
     } finally {
       isGeneratingMenuRef.current = false
     }
-  }, [householdId])
+  }, [householdId, rules])
 
   const loadCurrentMenu = useCallback(async (shouldGenerateIfMissing = false) => {
     try {
@@ -266,13 +290,18 @@ function App({ household }: { household: Household }) {
               const weekEnd = new Date(weekStart)
               weekEnd.setDate(weekStart.getDate() + 6)
 
-              const menuItems = generateWeeklyMenu({ dishIdeas: dishesData as DishIdea[], weekStart })
+              const result = generateWeeklyMenu({
+                dishIdeas: dishesData as DishIdea[],
+                weekStart,
+                rules: rulesRef.current,
+              })
+              setDegraded(result.degraded ? describeDegradedMenu(result.unmet) : null)
 
               const newMenuData = {
                 household_id: householdId,
                 week_start: formatLocalDate(weekStart),
                 week_end: formatLocalDate(weekEnd),
-                menu_items: menuItems,
+                menu_items: result.items,
               }
 
               const { data: insertedMenu, error: insertError } = await supabase
@@ -589,7 +618,7 @@ function App({ household }: { household: Household }) {
   }
 
   const displayedMenu = weekOffset === 0 ? currentMenu : nextWeekMenu
-  const catalogReady = isCatalogReady(dishIdeas)
+  const catalogReady = isCatalogReady(dishIdeas, rules)
 
   return (
     <div className="min-h-screen">
@@ -641,6 +670,42 @@ function App({ household }: { household: Household }) {
             </div>
           )}
 
+          {degraded && view === 'agenda' && !isEditing && (
+            <div
+              className="mb-4 rounded-2xl border-2 border-amarillo-500 bg-amarillo-100 p-4"
+              role="status"
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full bg-amarillo-500 text-sm font-extrabold text-tinta-900"
+                  aria-hidden="true"
+                >
+                  !
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-extrabold text-amarillo-700">{degraded.title}</p>
+                  <p className="mt-1 text-[13px] font-bold font-sans leading-[1.4] text-amarillo-700">
+                    {degraded.detail}
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setView('family')}
+                      className="rounded-full bg-tinta-900 px-4 py-1.5 text-[13px] font-extrabold text-crema-100 transition-colors duration-120 hover:bg-tinta-700 focus:outline-none focus:ring-2 focus:ring-tinta-900 focus:ring-offset-2"
+                    >
+                      Cambiar reglas
+                    </button>
+                    <button
+                      onClick={() => setView('catalog')}
+                      className="rounded-full border-2 border-tinta-900 px-4 py-1.5 text-[13px] font-extrabold text-tinta-900 transition-colors duration-120 hover:bg-amarillo-300 focus:outline-none focus:ring-2 focus:ring-tinta-900 focus:ring-offset-2"
+                    >
+                      Añadir platos
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {view === 'catalog' ? (
             <CatalogView
               dishIdeas={dishIdeas}
@@ -649,7 +714,12 @@ function App({ household }: { household: Household }) {
               onDeleteDish={handleDeleteDish}
             />
           ) : view === 'family' ? (
-            <FamilyView household={household} />
+            <FamilyView
+              household={household}
+              onRegenerateWeek={() =>
+                generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)
+              }
+            />
           ) : isLoadingNextWeek ? (
             <div className="card py-12 text-center" role="status" aria-live="polite">
               <div className="mx-auto h-14 w-14 rounded-full border-4 border-crema-300 border-t-verde-500 animate-spin motion-reduce:animate-pulse" />
@@ -698,7 +768,7 @@ function App({ household }: { household: Household }) {
                       : `Lleváis ${dishIdeas.length} ${dishIdeas.length === 1 ? 'plato' : 'platos'}. Faltan algunos mínimos para montar la semana.`}
                   </p>
                   <div className="mt-4 text-left">
-                    <CatalogChecklist dishIdeas={dishIdeas} />
+                    <CatalogChecklist dishIdeas={dishIdeas} rules={rules} />
                   </div>
                   <button onClick={() => setView('catalog')} className="btn-primary mt-4 w-full">
                     Añadir platos

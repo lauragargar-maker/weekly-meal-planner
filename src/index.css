@@ -65,7 +65,9 @@
     @apply inline-flex items-center justify-center gap-2 bg-tinta-900 text-crema-100 font-extrabold
            px-6 py-3.5 rounded-full min-h-[48px] transition-colors duration-120
            hover:bg-tinta-700 active:scale-[0.98]
-           focus:outline-none focus:ring-2 focus:ring-tinta-900 focus:ring-offset-2;
+           focus:outline-none focus:ring-2 focus:ring-tinta-900 focus:ring-offset-2
+           disabled:bg-crema-300 disabled:text-tinta-400 disabled:cursor-not-allowed
+           disabled:hover:bg-crema-300 disabled:active:scale-100;
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 bg-white text-tinta-500 font-extrabold

@@ -1,20 +1,108 @@
-import { DishIdea, MenuItem } from '../types'
+import { DishIdea, Ingredient, MenuItem } from '../types'
+import {
+  CARB_AXIS,
+  DEFAULT_RULES,
+  HouseholdRules,
+  PROTEIN_AXIS,
+  requiresVegetableAtDinner,
+} from '../lib/householdRules'
+import { CatalogRequirement, getUnmetRequirements } from './catalogCheck'
+
+export interface MenuGenerationResult {
+  items: MenuItem[]
+  /**
+   * The rules could not be satisfied and this is the basic menu, which ignores
+   * most of them. Never let this pass unmentioned: the household configured
+   * something and did not get it.
+   */
+  degraded: boolean
+  /**
+   * Which catalogue requirements the household's own rules are missing. Empty
+   * while `degraded` is true means the counts all add up and the combination
+   * itself is the problem — usually day types, or too little room to avoid
+   * repeating a dish.
+   */
+  unmet: CatalogRequirement[]
+}
 
 interface MenuGenerationOptions {
   dishIdeas: DishIdea[]
   weekStart: Date
+  /**
+   * Optional only until the household's stored rules are wired through the app.
+   * Falling back to DEFAULT_RULES is not the same as today's behaviour: the
+   * protein rule is on and the legume count becomes a minimum. Both changes are
+   * intended, and documented in docs/beta-plan.md.
+   */
+  rules?: HouseholdRules
 }
-
-type Ingredient = DishIdea['main_ingredient']
 
 const MAX_ATTEMPTS = 200
 
-const extractWords = (text: string): string[] =>
+/**
+ * Food group per ingredient. Lives in code, not in the database: it enables
+ * "don't repeat the protein group" and "don't repeat the carb" without touching
+ * data or UI. Legumes count as protein — a plate of lentils is the protein dish
+ * of the meal, not its side.
+ */
+export const INGREDIENT_GROUP: Record<Ingredient, 'carb' | 'protein' | 'vegetable'> = {
+  pasta: 'carb',
+  rice: 'carb',
+  potato: 'carb',
+  meat: 'protein',
+  fish: 'protein',
+  egg: 'protein',
+  legume: 'protein',
+  vegetable: 'vegetable',
+}
+
+const has = (dish: DishIdea | undefined, ingredient: Ingredient): boolean =>
+  Boolean(dish?.main_ingredients?.includes(ingredient))
+
+/** A dish carries several ingredients now, so "the same" becomes "they overlap". */
+const shareIngredient = (a: Ingredient[], b: Ingredient[], only: Ingredient[]): boolean =>
+  only.some(ingredient => a.includes(ingredient) && b.includes(ingredient))
+
+/**
+ * Block B: does this pairing repeat something the household asked not to repeat?
+ *
+ * Both axes off means no cross-check at all, which is a valid choice — it is
+ * roughly what the app did before fish and egg were special-cased.
+ */
+const repeatsWithinDay = (
+  rules: HouseholdRules,
+  lunch: Ingredient[],
+  dinner: Ingredient[],
+): boolean => {
+  if (rules.noRepeatCarb && shareIngredient(lunch, dinner, CARB_AXIS)) return true
+  if (rules.noRepeatProtein && shareIngredient(lunch, dinner, PROTEIN_AXIS)) return true
+  return false
+}
+
+/** Block D: kept off the evening menu by the household's own list. */
+const isExcludedAtDinner = (rules: HouseholdRules, dish: DishIdea): boolean =>
+  rules.dinnerExclusions.some(ingredient => has(dish, ingredient))
+
+/**
+ * The words that make two dishes feel like the same dish on the same day.
+ *
+ * Accents are folded rather than stripped: the old version deleted them along
+ * with every other non-ASCII character, so "calabacín" became "calabac" + "n"
+ * and "jamón" became "jam" + "n". Eight dishes then shared a meaningless "n" and
+ * could never be served together.
+ *
+ * Words of three letters or fewer are dropped, because "de", "con", "la" and "y"
+ * are not what anybody means by repeating an ingredient — "de" alone appeared in
+ * 20 of the 64 starter dishes and blocked most of their combinations.
+ */
+export const extractWords = (text: string): string[] =>
   text
     .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
-    .filter(Boolean)
+    .filter(word => word.length > 3)
 
 const shuffleArray = <T>(array: T[]): T[] => {
   const copy = [...array]
@@ -46,10 +134,12 @@ const isDishCompatibleWithDay = (dish: DishIdea, weekend: boolean): boolean => {
 const getDish = (map: Map<string, DishIdea>, name?: string): DishIdea | undefined =>
   name ? map.get(name) : undefined
 
-const getLunchIngredient = (map: Map<string, DishIdea>, menuItem?: MenuItem): Ingredient => {
-  if (!menuItem) return undefined
-  if (menuItem.single) return getDish(map, menuItem.single)?.main_ingredient
-  return getDish(map, menuItem.main)?.main_ingredient
+const ingredientsOf = (dish?: DishIdea): Ingredient[] => dish?.main_ingredients ?? []
+
+const getLunchIngredients = (map: Map<string, DishIdea>, menuItem?: MenuItem): Ingredient[] => {
+  if (!menuItem) return []
+  if (menuItem.single) return ingredientsOf(getDish(map, menuItem.single))
+  return ingredientsOf(getDish(map, menuItem.main))
 }
 
 const buildDayWords = (_map: Map<string, DishIdea>, dayISO: string, items: MenuItem[]): Set<string> => {
@@ -72,13 +162,12 @@ const computeFishDays = (map: Map<string, DishIdea>, items: MenuItem[]): Set<str
   const fishDays = new Set<string>()
   for (const item of items) {
     if (item.meal_type === 'lunch') {
-      const ingredient = getLunchIngredient(map, item)
-      if (ingredient === 'fish') {
+      if (getLunchIngredients(map, item).includes('fish')) {
         fishDays.add(item.day)
       }
     }
     if (item.meal_type === 'dinner') {
-      if (getDish(map, item.main)?.main_ingredient === 'fish') {
+      if (has(getDish(map, item.main), 'fish')) {
         fishDays.add(item.day)
       }
     }
@@ -92,16 +181,27 @@ const hasWordOverlap = (words: Set<string>, text: string): boolean =>
 const validateMenu = (
   map: Map<string, DishIdea>,
   items: MenuItem[],
-  requiresLegumeLunch: boolean,
+  rules: HouseholdRules,
 ): boolean => {
   const legumeCount = items
     .filter(item => item.meal_type === 'lunch')
-    .filter(item => getLunchIngredient(map, item) === 'legume').length
+    .filter(item => getLunchIngredients(map, item).includes('legume')).length
 
-  if (requiresLegumeLunch && legumeCount !== 1) return false
+  // A MINIMUM, where this used to demand exactly one and reject a week with two.
+  // That is what excluded households eating legumes several times a week.
+  if (legumeCount < rules.legumeMinLunches) return false
 
   const fishDays = computeFishDays(map, items)
-  if (fishDays.size < 2) return false
+  if (fishDays.size < rules.fishMinDays) return false
+
+  // Block C: pasta is a ceiling, counted per dish across the whole week, so a
+  // lunch of soup and lasagna spends two of the household's allowance.
+  const pastaCount = items
+    .flatMap(item => [item.starter, item.main, item.single])
+    .filter((name): name is string => Boolean(name))
+    .filter(name => has(getDish(map, name), 'pasta')).length
+
+  if (pastaCount > rules.pastaMaxPerWeek) return false
 
   const dayIsos = Array.from(new Set(items.map(item => item.day)))
 
@@ -126,22 +226,41 @@ const validateMenu = (
     const hasCombo = Boolean(lunch.starter && lunch.main)
     if (!(hasSingle || hasCombo)) return false
     if (hasSingle && hasCombo) return false
+    // Block A: the household may have asked for one shape or the other.
+    if (rules.lunchStructure === 'single' && !hasSingle) return false
+    if (rules.lunchStructure === 'courses' && !hasCombo) return false
+
+    const dinnerStarter = dinner.starter ? getDish(map, dinner.starter) : undefined
+    if (rules.dinnerCourses === 2 && !dinnerStarter) return false
+    if (rules.dinnerCourses === 1 && dinner.starter) return false
 
     const dinnerDish = getDish(map, dinner.main)
-    if (!dinnerDish || dinnerDish.main_ingredient === 'pasta') return false
+    if (!dinnerDish || isExcludedAtDinner(rules, dinnerDish)) return false
+    if (dinnerStarter && isExcludedAtDinner(rules, dinnerStarter)) return false
 
-    const lunchIngredient = getLunchIngredient(map, lunch)
-    const dinnerIngredient = dinnerDish.main_ingredient
+    if (
+      requiresVegetableAtDinner(rules) &&
+      !has(dinnerDish, 'vegetable') &&
+      !has(dinnerStarter, 'vegetable')
+    ) {
+      return false
+    }
 
-    if (lunchIngredient === 'fish' && dinnerIngredient === 'fish') return false
-    if (lunchIngredient === 'egg' && dinnerIngredient === 'egg') return false
+    // The main course is what an ingredient rule reads, for dinner as for lunch:
+    // "no repitas pasta" is about the dish that carries the meal, not about a
+    // salad on the side.
+    const lunchIngredients = getLunchIngredients(map, lunch)
+    const dinnerIngredients = ingredientsOf(dinnerDish)
+    if (repeatsWithinDay(rules, lunchIngredients, dinnerIngredients)) return false
 
     const words = buildDayWords(map, dayISO, items)
-    const totalWords =
-      (lunch.starter ? extractWords(lunch.starter).length : 0) +
-      (lunch.main ? extractWords(lunch.main).length : 0) +
-      (lunch.single ? extractWords(lunch.single).length : 0) +
-      extractWords(dinner.main).length
+    const totalWords = [
+      lunch.starter,
+      lunch.main,
+      lunch.single,
+      dinner.starter,
+      dinner.main,
+    ].reduce((total, name) => total + (name ? extractWords(name).length : 0), 0)
 
     if (words.size !== totalWords) return false
   }
@@ -152,44 +271,45 @@ const validateMenu = (
 const pickLunch = (
   _map: Map<string, DishIdea>,
   dayISO: string,
+  /**
+   * This day was drawn to carry one of the household's required legume lunches.
+   * Other days are free to serve legumes too: the rule is a minimum, so there is
+   * no reason to keep them out elsewhere.
+   */
   isLegumeDay: boolean,
-  legumeRequired: boolean,
   starters: DishIdea[],
   mains: DishIdea[],
   singles: DishIdea[],
   usedDishes: Set<string>,
-): { menuItem: MenuItem; ingredient: Ingredient; words: Set<string>; names: string[] } | null => {
+  rules: HouseholdRules,
+): { menuItem: MenuItem; ingredients: Ingredient[]; words: Set<string>; names: string[] } | null => {
   const options: Array<{
     menuItem: MenuItem
-    ingredient: Ingredient
+    ingredients: Ingredient[]
     words: Set<string>
     names: string[]
   }> = []
 
-  for (const single of shuffleArray(singles)) {
-    const isLegume = single.main_ingredient === 'legume'
-    if (isLegumeDay) {
-      if (!isLegume) continue
-    } else if (legumeRequired && isLegume) {
-      continue
-    }
+  // Block A. 'either' collects both shapes and lets the random pick below decide,
+  // which is what the app has always done — and what serves neither interviewee:
+  // one always eats a starter and a main, the other always a single dish.
+  const allowsSingle = rules.lunchStructure !== 'courses'
+  const allowsCourses = rules.lunchStructure !== 'single'
+
+  for (const single of allowsSingle ? shuffleArray(singles) : []) {
+    if (isLegumeDay && !has(single, 'legume')) continue
     if (usedDishes.has(single.name)) continue
     const words = new Set(extractWords(single.name))
     options.push({
       menuItem: { day: dayISO, meal_type: 'lunch', single: single.name },
-      ingredient: single.main_ingredient,
+      ingredients: ingredientsOf(single),
       words,
       names: [single.name],
     })
   }
 
-  for (const mainDish of shuffleArray(mains)) {
-    const isLegume = mainDish.main_ingredient === 'legume'
-    if (isLegumeDay) {
-      if (!isLegume) continue
-    } else if (legumeRequired && isLegume) {
-      continue
-    }
+  for (const mainDish of allowsCourses ? shuffleArray(mains) : []) {
+    if (isLegumeDay && !has(mainDish, 'legume')) continue
 
     for (const starter of shuffleArray(starters)) {
       if (usedDishes.has(starter.name) || usedDishes.has(mainDish.name)) continue
@@ -204,7 +324,7 @@ const pickLunch = (
           starter: starter.name,
           main: mainDish.name,
         },
-        ingredient: mainDish.main_ingredient,
+        ingredients: ingredientsOf(mainDish),
         words: combinedWords,
         names: [starter.name, mainDish.name],
       })
@@ -212,37 +332,73 @@ const pickLunch = (
     }
   }
 
-  if (isLegumeDay && options.every(option => option.ingredient !== 'legume')) {
+  if (isLegumeDay && options.every(option => !option.ingredients.includes('legume'))) {
     return null
   }
 
   return options.length > 0 ? options[Math.floor(Math.random() * options.length)] : null
 }
 
+/**
+ * Block A: dinner is one dish or two, and when it is two the generator composes
+ * it the way it composes lunch — a starter and a main.
+ *
+ * That is the part with teeth. Until now dinners were drawn only from `main`
+ * dishes, so the vegetable dishes filed as starters were unreachable in the
+ * evening; a household asking for vegetables at dinner would have been told its
+ * catalogue was short while half of what it needed sat there unused.
+ */
 const pickDinner = (
   _map: Map<string, DishIdea>,
   dayISO: string,
-  lunchIngredient: Ingredient,
+  lunchIngredients: Ingredient[],
   existingWords: Set<string>,
   dinnerMains: DishIdea[],
+  dinnerStarters: DishIdea[],
   usedDishes: Set<string>,
-): { menuItem: MenuItem; words: Set<string>; name: string } | null => {
-  for (const candidate of shuffleArray(dinnerMains)) {
-    if (candidate.main_ingredient === 'pasta') continue
-    if (lunchIngredient === 'fish' && candidate.main_ingredient === 'fish') continue
-    if (lunchIngredient === 'egg' && candidate.main_ingredient === 'egg') continue
-    if (hasWordOverlap(existingWords, candidate.name)) continue
-    if (usedDishes.has(candidate.name)) continue
+  rules: HouseholdRules,
+): { menuItem: MenuItem; words: Set<string>; names: string[] } | null => {
+  const needsVegetable = requiresVegetableAtDinner(rules)
 
-    const words = new Set(extractWords(candidate.name))
-    return {
-      menuItem: {
-        day: dayISO,
-        meal_type: 'dinner',
-        main: candidate.name,
-      },
-      words,
-      name: candidate.name,
+  for (const main of shuffleArray(dinnerMains)) {
+    if (isExcludedAtDinner(rules, main)) continue
+    if (repeatsWithinDay(rules, lunchIngredients, ingredientsOf(main))) continue
+    if (hasWordOverlap(existingWords, main.name)) continue
+    if (usedDishes.has(main.name)) continue
+
+    const mainWords = new Set(extractWords(main.name))
+
+    if (rules.dinnerCourses === 1) {
+      if (needsVegetable && !has(main, 'vegetable')) continue
+      return {
+        menuItem: { day: dayISO, meal_type: 'dinner', main: main.name },
+        words: mainWords,
+        names: [main.name],
+      }
+    }
+
+    // The vegetable can come from either course, so a main that already brings
+    // it frees the starter to be anything.
+    const vegetableStillNeeded = needsVegetable && !has(main, 'vegetable')
+
+    for (const starter of shuffleArray(dinnerStarters)) {
+      if (usedDishes.has(starter.name)) continue
+      if (starter.name === main.name) continue
+      if (isExcludedAtDinner(rules, starter)) continue
+      if (vegetableStillNeeded && !has(starter, 'vegetable')) continue
+      if (hasWordOverlap(existingWords, starter.name)) continue
+      if (hasWordOverlap(mainWords, starter.name)) continue
+
+      return {
+        menuItem: {
+          day: dayISO,
+          meal_type: 'dinner',
+          starter: starter.name,
+          main: main.name,
+        },
+        words: new Set([...mainWords, ...extractWords(starter.name)]),
+        names: [starter.name, main.name],
+      }
     }
   }
 
@@ -252,15 +408,17 @@ const pickDinner = (
 const ensureFishDays = (
   map: Map<string, DishIdea>,
   menuItems: MenuItem[],
-  legumeDayISO: string | null,
+  /** Days already carrying a required legume lunch; their lunch must not move. */
+  legumeDayISOs: Set<string>,
   starters: DishIdea[],
   fishLunchOptions: DishIdea[],
   fishDinnerOptions: DishIdea[],
   usedDishes: Set<string>,
   weekendDays: Set<string>,
+  rules: HouseholdRules,
 ): boolean => {
   const fishDays = computeFishDays(map, menuItems)
-  if (fishDays.size >= 2) return true
+  if (fishDays.size >= rules.fishMinDays) return true
 
   const dayIsos = Array.from(new Set(menuItems.map(item => item.day))).filter(
     day => !fishDays.has(day),
@@ -276,15 +434,18 @@ const ensureFishDays = (
       usedDishes.delete(currentDinnerName)
     }
 
-    const lunchIngredient = getLunchIngredient(map, lunchItem)
+    const lunchIngredients = getLunchIngredients(map, lunchItem)
     const lunchWords = buildDayWords(map, dayISO, [lunchItem])
     const weekend = weekendDays.has(dayISO)
 
     for (const candidate of shuffleArray(fishDinnerOptions)) {
       if (!isDishCompatibleWithDay(candidate, weekend)) continue
-      if (candidate.main_ingredient !== 'fish') continue
-      if (lunchIngredient === 'fish') continue
-      if (lunchIngredient === 'egg') continue
+      if (!has(candidate, 'fish')) continue
+      // The swap has to respect the same rules as a first-pass pick, or the day
+      // it repairs breaks a different rule and validateMenu throws the whole
+      // week away.
+      if (isExcludedAtDinner(rules, candidate)) continue
+      if (repeatsWithinDay(rules, lunchIngredients, ingredientsOf(candidate))) continue
       if (hasWordOverlap(lunchWords, candidate.name)) continue
       if (usedDishes.has(candidate.name)) continue
 
@@ -301,7 +462,8 @@ const ensureFishDays = (
   }
 
   const tryAddFishToLunch = (dayISO: string): boolean => {
-    if (legumeDayISO && legumeDayISO === dayISO) return false
+    // Replacing this lunch would drop a legume the week is counting on.
+    if (legumeDayISOs.has(dayISO)) return false
 
     const lunchIndex = menuItems.findIndex(item => item.day === dayISO && item.meal_type === 'lunch')
     const dinnerItem = menuItems.find(item => item.day === dayISO && item.meal_type === 'dinner')
@@ -323,7 +485,7 @@ const ensureFishDays = (
 
     for (const candidate of shuffleArray(fishLunchOptions)) {
       if (!isDishCompatibleWithDay(candidate, weekend)) continue
-      if (candidate.main_ingredient !== 'fish') continue
+      if (!has(candidate, 'fish')) continue
       if (usedDishes.has(candidate.name)) continue
 
       if (candidate.category === 'single') {
@@ -375,17 +537,20 @@ const ensureFishDays = (
 
   for (const dayISO of dayIsos) {
     if (tryAddFishToDinner(dayISO) || tryAddFishToLunch(dayISO)) {
-      const updatedFishDays = computeFishDays(map, menuItems)
-      if (updatedFishDays.size >= 2) {
+      if (computeFishDays(map, menuItems).size >= rules.fishMinDays) {
         return true
       }
     }
   }
 
-  return computeFishDays(map, menuItems).size >= 2
+  return computeFishDays(map, menuItems).size >= rules.fishMinDays
 }
 
-const generateBasicMenu = (dishIdeas: DishIdea[], weekStart: Date): MenuItem[] => {
+const generateBasicMenu = (
+  dishIdeas: DishIdea[],
+  weekStart: Date,
+  rules: HouseholdRules,
+): MenuItem[] => {
   const used = new Set<string>()
   const menuItems: MenuItem[] = []
 
@@ -399,7 +564,7 @@ const generateBasicMenu = (dishIdeas: DishIdea[], weekStart: Date): MenuItem[] =
     const starters = dayDishes.filter(d => d.category === 'starter')
     const mains = dayDishes.filter(d => d.category === 'main')
     const singleCourses = dayDishes.filter(d => d.category === 'single')
-    const dinnerMains = mains.filter(d => d.main_ingredient !== 'pasta')
+    const dinnerMains = mains.filter(d => !isExcludedAtDinner(rules, d))
 
     const useSingle = singleCourses.length > 0 && Math.random() < 0.5
     if (useSingle) {
@@ -426,7 +591,20 @@ const generateBasicMenu = (dishIdeas: DishIdea[], weekStart: Date): MenuItem[] =
   return menuItems
 }
 
-export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptions): MenuItem[] {
+export function generateWeeklyMenu({
+  dishIdeas,
+  weekStart,
+  rules = DEFAULT_RULES,
+}: MenuGenerationOptions): MenuGenerationResult {
+  const degrade = (reason: string): MenuGenerationResult => {
+    console.warn(`${reason} Returning basic menu.`)
+    return {
+      items: generateBasicMenu(dishIdeas, weekStart, rules),
+      degraded: true,
+      unmet: getUnmetRequirements(dishIdeas, rules),
+    }
+  }
+
   const dishMap = new Map<string, DishIdea>(dishIdeas.map(dish => [dish.name, dish]))
 
   // Pre-compute which ISO dates fall on weekends for the 7-day window
@@ -442,27 +620,49 @@ export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptio
   const allMains = dishIdeas.filter(d => d.category === 'main' && (d.meal_type === 'lunch' || d.meal_type === 'both'))
   const allSingleCourses = dishIdeas.filter(d => d.category === 'single' && (d.meal_type === 'lunch' || d.meal_type === 'both'))
   const allDinnerMains = dishIdeas.filter(
-    d => d.category === 'main' && (d.meal_type === 'dinner' || d.meal_type === 'both') && d.main_ingredient !== 'pasta',
+    d =>
+      d.category === 'main' &&
+      (d.meal_type === 'dinner' || d.meal_type === 'both') &&
+      !isExcludedAtDinner(rules, d),
+  )
+  // Only consulted for two-course dinners. This is the pool the app never used:
+  // starters flagged for dinner, which is where most vegetable dishes live.
+  const allDinnerStarters = dishIdeas.filter(
+    d =>
+      d.category === 'starter' &&
+      (d.meal_type === 'dinner' || d.meal_type === 'both') &&
+      !isExcludedAtDinner(rules, d),
   )
 
-  const legumeLunchAvailable =
-    [...allSingleCourses, ...allMains].some(d => d.main_ingredient === 'legume')
+  if (rules.dinnerCourses === 2 && allDinnerStarters.length === 0) {
+    return degrade('Two-course dinners were asked for, but no starter is available at dinner.')
+  }
 
   if (allDinnerMains.length === 0) {
-    console.warn('No dinner mains available (without pasta). Returning basic menu.')
-    return generateBasicMenu(dishIdeas, weekStart)
+    return degrade("No dinner mains available for this household's exclusions.")
   }
 
-  if (!dishIdeas.some(d => d.main_ingredient === 'fish')) {
-    console.warn('No fish dishes available. Returning basic menu.')
-    return generateBasicMenu(dishIdeas, weekStart)
+  if (rules.fishMinDays > 0 && !dishIdeas.some(d => has(d, 'fish'))) {
+    return degrade('No fish dishes available.')
   }
+
+  // Deliberately NOT clamped to what the catalogue can supply. Asking for three
+  // legume lunches with two legume dishes is unsatisfiable, and clamping would
+  // quietly hand back a week with two as if the rule had been met. Today it
+  // exhausts the attempts and falls back; M2b is what turns that into a message
+  // naming the rule that could not be kept.
+  const legumeDaysNeeded = Math.min(rules.legumeMinLunches, 7)
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const menuItems: MenuItem[] = []
     const usedDishes = new Set<string>()
-    const legumeDayIndex = legumeLunchAvailable ? Math.floor(Math.random() * 7) : null
-    let legumeDayISO: string | null = null
+    // Which days carry the required legume lunches. Redrawn every attempt, so a
+    // draw that lands on a day with no compatible legume dish — Cocido and
+    // Lentejas are often weekday-only — is retried rather than fatal.
+    const legumeDayIndices = new Set(
+      shuffleArray([0, 1, 2, 3, 4, 5, 6]).slice(0, legumeDaysNeeded),
+    )
+    const legumeDayISOs = new Set<string>()
     let success = true
 
     for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
@@ -470,23 +670,24 @@ export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptio
       date.setDate(weekStart.getDate() + dayIndex)
       const dayISO = formatLocalDate(date)
       const weekend = weekendDays.has(dayISO)
-      const isLegumeDay = legumeDayIndex === dayIndex
+      const isLegumeDay = legumeDayIndices.has(dayIndex)
 
       // Filter dish pools to only those compatible with this day's weekday/weekend type
       const dayStarters = allStarters.filter(d => isDishCompatibleWithDay(d, weekend))
       const dayMains = allMains.filter(d => isDishCompatibleWithDay(d, weekend))
       const daySingleCourses = allSingleCourses.filter(d => isDishCompatibleWithDay(d, weekend))
       const dayDinnerMains = allDinnerMains.filter(d => isDishCompatibleWithDay(d, weekend))
+      const dayDinnerStarters = allDinnerStarters.filter(d => isDishCompatibleWithDay(d, weekend))
 
       const lunchChoice = pickLunch(
         dishMap,
         dayISO,
-        Boolean(isLegumeDay),
-        Boolean(legumeLunchAvailable),
+        isLegumeDay,
         dayStarters,
         dayMains,
         daySingleCourses,
         usedDishes,
+        rules,
       )
 
       if (!lunchChoice) {
@@ -497,17 +698,19 @@ export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptio
       menuItems.push(lunchChoice.menuItem)
       lunchChoice.names.forEach(name => usedDishes.add(name))
 
-      if (lunchChoice.ingredient === 'legume') {
-        legumeDayISO = dayISO
+      if (lunchChoice.ingredients.includes('legume')) {
+        legumeDayISOs.add(dayISO)
       }
 
       const dinnerChoice = pickDinner(
         dishMap,
         dayISO,
-        lunchChoice.ingredient,
+        lunchChoice.ingredients,
         new Set(lunchChoice.words),
         dayDinnerMains,
+        dayDinnerStarters,
         usedDishes,
+        rules,
       )
 
       if (!dinnerChoice) {
@@ -516,50 +719,50 @@ export function generateWeeklyMenu({ dishIdeas, weekStart }: MenuGenerationOptio
       }
 
       menuItems.push(dinnerChoice.menuItem)
-      usedDishes.add(dinnerChoice.name)
+      dinnerChoice.names.forEach(name => usedDishes.add(name))
     }
 
     if (!success) {
       continue
     }
 
-    if (legumeLunchAvailable && !legumeDayISO) {
+    if (legumeDayISOs.size < legumeDaysNeeded) {
       continue
     }
 
     const fishLunchOptions = dishIdeas.filter(
       d =>
-        d.main_ingredient === 'fish' &&
+        has(d, 'fish') &&
         (d.meal_type === 'lunch' || d.meal_type === 'both') &&
         (d.category === 'single' || d.category === 'main'),
     )
-    const fishDinnerOptions = allDinnerMains.filter(d => d.main_ingredient === 'fish')
+    const fishDinnerOptions = allDinnerMains.filter(d => has(d, 'fish'))
 
     if (
       !ensureFishDays(
         dishMap,
         menuItems,
-        legumeDayISO,
+        legumeDayISOs,
         allStarters,
         fishLunchOptions,
         fishDinnerOptions,
         usedDishes,
         weekendDays,
+        rules,
       )
     ) {
       continue
     }
 
-    if (!validateMenu(dishMap, menuItems, Boolean(legumeLunchAvailable))) {
+    if (!validateMenu(dishMap, menuItems, rules)) {
       continue
     }
 
     console.log(`✅ Weekly menu generated after ${attempt + 1} attempt(s)`)
-    return menuItems
+    return { items: menuItems, degraded: false, unmet: [] }
   }
 
-  console.warn('Unable to satisfy all constraints. Returning basic menu.')
-  return generateBasicMenu(dishIdeas, weekStart)
+  return degrade(`Unable to satisfy all constraints after ${MAX_ATTEMPTS} attempts.`)
 }
 
 /**

@@ -1,18 +1,23 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth-context'
 import { getErrorMessage, translateError } from '../lib/errorMessages'
+import { HouseholdRules, parseRules } from '../lib/householdRules'
+import { trackEvent } from '../lib/analytics'
 import { Household } from '../types'
+import HouseholdRulesEditor from './HouseholdRulesEditor'
 
 interface FamilyViewProps {
   household: Household
+  /** Regenerates the current week with whatever the rules now say. */
+  onRegenerateWeek?: () => Promise<void>
 }
 
 /** "123456" → "123 456", for display only. */
 const formatJoinCode = (code: string): string =>
   code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code
 
-export default function FamilyView({ household }: FamilyViewProps) {
+export default function FamilyView({ household, onRegenerateWeek }: FamilyViewProps) {
   const { session, signOut, refreshHousehold } = useAuth()
   const [editingName, setEditingName] = useState(false)
   const [name, setName] = useState(household.name)
@@ -20,6 +25,59 @@ export default function FamilyView({ household }: FamilyViewProps) {
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const savedRules = useMemo(() => parseRules(household.rules), [household.rules])
+  const [draftRules, setDraftRules] = useState<HouseholdRules>(savedRules)
+  const [savingRules, setSavingRules] = useState(false)
+  const [rulesError, setRulesError] = useState<string | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
+
+  // Reset the draft when the stored rules change under us — another member
+  // editing them, or our own save landing.
+  useEffect(() => {
+    setDraftRules(savedRules)
+  }, [savedRules])
+
+  const rulesChanged = useMemo(
+    () => JSON.stringify(draftRules) !== JSON.stringify(savedRules),
+    [draftRules, savedRules]
+  )
+
+  const saveRules = async () => {
+    if (savingRules || !rulesChanged) return
+    setSavingRules(true)
+    setRulesError(null)
+    try {
+      const { error: updateError } = await supabase
+        .from('households')
+        .update({ rules: draftRules })
+        .eq('id', household.id)
+      if (updateError) throw updateError
+      await refreshHousehold()
+      trackEvent('household_rules_saved')
+      setToast('Ajustes guardados')
+    } catch (err) {
+      console.error('Error saving household rules:', err)
+      setRulesError(translateError(getErrorMessage(err), 'No se pudieron guardar los ajustes'))
+    } finally {
+      setSavingRules(false)
+    }
+  }
+
+  const regenerate = async () => {
+    if (!onRegenerateWeek || regenerating) return
+    setRegenerating(true)
+    try {
+      await onRegenerateWeek()
+      trackEvent('week_regenerated')
+      setToast('Semana regenerada')
+    } catch (err) {
+      console.error('Error regenerating week:', err)
+      setRulesError(translateError(getErrorMessage(err), 'No se pudo regenerar la semana'))
+    } finally {
+      setRegenerating(false)
+    }
+  }
 
   useEffect(() => {
     if (editingName && inputRef.current) {
@@ -164,6 +222,62 @@ export default function FamilyView({ household }: FamilyViewProps) {
           </p>
         </div>
       </div>
+
+      <section className="mt-8 max-w-[620px]">
+        <h2 className="label-nam !mb-0">Ajustes de la casa</h2>
+        <p className="mt-1 text-[13px] font-bold font-sans leading-[1.4] text-tinta-500">
+          Así se arman los menús. Los cambios se aplican a partir de la próxima semana que
+          se genere: las que ya están hechas no se tocan.
+        </p>
+
+        <div className="mt-4">
+          <HouseholdRulesEditor
+            rules={draftRules}
+            onChange={setDraftRules}
+            disabled={savingRules}
+          />
+        </div>
+
+        {rulesError && (
+          <p className="error-nam" role="alert">
+            {rulesError}
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-col gap-2">
+          <button
+            onClick={saveRules}
+            disabled={!rulesChanged || savingRules}
+            className="btn-primary w-full disabled:cursor-not-allowed disabled:bg-crema-400 disabled:text-crema-100"
+          >
+            {savingRules && (
+              <span
+                className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-white/40 border-t-white"
+                aria-hidden="true"
+              />
+            )}
+            {savingRules ? 'Guardando…' : rulesChanged ? 'Guardar ajustes' : 'Ajustes guardados'}
+          </button>
+
+          {/* Regenerating is never automatic: it would wipe any hand edits, and
+              going from one dinner course to two cannot retroactively invent the
+              dish that is missing. */}
+          {onRegenerateWeek && (
+            <button
+              onClick={regenerate}
+              disabled={regenerating || rulesChanged}
+              className="btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {regenerating ? 'Regenerando…' : 'Regenerar esta semana'}
+            </button>
+          )}
+          {rulesChanged && onRegenerateWeek && (
+            <p className="text-center text-[13px] font-bold font-sans text-tinta-500">
+              Guarda los ajustes para poder regenerar con ellos.
+            </p>
+          )}
+        </div>
+      </section>
 
       <div className="mt-8">
         <button

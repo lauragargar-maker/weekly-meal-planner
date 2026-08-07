@@ -57,7 +57,8 @@ export default function DishEditor({ value, slot, mealType, day, dishIdeas, onUp
     if (dish.day_type === 'weekendday' && !weekend) return false
     if (dish.day_type === 'weekday' && weekend) return false
     if (dish.meal_type !== 'both' && dish.meal_type !== mealType) return false
-    if (mealType === 'dinner' && dish.category === 'main' && dish.main_ingredient === 'pasta') return false
+    if (mealType === 'dinner' && dish.category === 'main' && dish.main_ingredients.includes('pasta'))
+      return false
 
     if (slot === 'main' && mealType === 'lunch') {
       return dish.category === 'main' || dish.category === 'single'

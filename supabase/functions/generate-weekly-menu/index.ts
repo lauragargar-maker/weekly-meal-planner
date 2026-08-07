@@ -11,6 +11,10 @@ interface DishIdea {
   name: string
   category: 'starter' | 'main' | 'single'
   meal_type: 'lunch' | 'dinner' | 'both'
+  // OUT OF DATE since the main_ingredients migration (2026-08): the column this
+  // reads no longer exists, and this copy of the generator does not know about
+  // rice, potato, or dishes with several ingredients. The function is paused —
+  // do not reactivate it without porting the changes from src/utils/menuGenerator.ts.
   main_ingredient?: 'pasta' | 'meat' | 'fish' | 'egg' | 'legume' | 'vegetable'
 }
 
