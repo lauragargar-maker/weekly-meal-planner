@@ -23,11 +23,12 @@ sin salida.
 | M2 — reglas por hogar | **En producción** (PR #11, ago 2026) |
 | M2b — consecuencias | **En producción** (PR #11), salvo el override manual → aplazado a M6 |
 | M4 — poda del catálogo en el onboarding | **En producción** (PR #11), resuelto por el onboarding v2 |
-| M5, M6, M9, M10 | Pendientes |
+| M5 — semana anterior y siguiente | **Hecho**, pendiente de mergear (ago 2026) |
+| M10 — semana de lunes a domingo | **Hecho**, pendiente de mergear (ago 2026) |
+| M6, M9 | Pendientes |
 
-Siguiente bloque de trabajo: **M5 → M10**, que es independiente y barato. **M6 y M9**
-siguen esperando specs de Claude Design (`docs/brief-claude-design.md`), y M6 arrastra
-además el override manual de M2b.
+Siguiente bloque de trabajo: **M6 y M9**, que siguen esperando specs de Claude Design
+(`docs/brief-claude-design.md`). M6 arrastra además el override manual de M2b.
 
 > **Aviso operativo tras M8.** Las plantillas de correo de producción ya **no**
 > contienen `{{ .ConfirmationURL }}`: solo mandan el código. Eso significa que
@@ -425,21 +426,33 @@ en la entrevista.
 
 Tamaño: M. Depende de: M2b (los mínimos), diseño (ver abajo).
 
-### M5 — Semana siguiente y anterior, siempre visibles
+### M5 — Semana siguiente y anterior, siempre visibles ✅ hecho
 
 Must-have explícito de Cristina para la siguiente; la anterior la pide también
 ("ampliar la vista temporal a semanas pasadas") y sale barata si se hace a la vez.
 
-No es un cambio de una línea: `weekOffset` está tipado `0 | 1` (`App.tsx:60`) y hay
-dos huecos de estado separados (`currentMenu` / `nextWeekMenu`) con sus cargadores.
-Hay que generalizar a un estado indexado por offset. **Conviene hacerlo de una vez**
-en lugar de dos veces.
+Los dos huecos de estado (`currentMenu` / `nextWeekMenu`) pasaron a **un mapa indexado
+por `week_start`**, no por offset. La fecha es lo que llevan los payloads de realtime
+—la suscripción bajó de dos ramas duplicadas a una— y un offset deja de significar la
+misma semana en cuanto pasa la medianoche.
 
-Detalles: en semanas pasadas no se ofrece generar, y los hogares nuevos no tendrán
-historial (pantalla vacía, no error).
+El alcance vive en una sola constante, `WEEK_RANGE` (`src/utils/weekStart.ts`), hoy
+en −1/+1. Ampliarlo es editar esos dos números; lo único que no es automático es
+decidir si navegar a una semana futura lejana debe seguir generándola.
 
-Efecto colateral: elimina `canAccessNextWeek` y `SETTINGS.upcomingWeekUnlockDay`, que
-eran dos de las cuatro dependencias que hacían caro M10.
+Decisiones tomadas al implementar:
+
+- **La semana pasada es de sólo lectura.** Ni editar ni regenerar. Si no hay fila
+  guardada, no se inventa: no plan significa que no se planificó.
+- **La cabecera de semana salió de `MenuAgendaView` a `WeekNav`.** Vivía dentro del
+  componente que exige un menú, así que aterrizar en una semana sin menú hacía
+  desaparecer las flechas y te dejaba atrapado. Ahora lee las fechas del offset.
+- El aviso de menú degradado va etiquetado con su semana, para que no te siga a una
+  semana de la que no dice nada.
+
+Efecto colateral: elimina `canAccessNextWeek` y `SETTINGS.upcomingWeekUnlockDay` —y
+con ellos `src/config.ts` entero—, que eran dos de las cuatro dependencias que hacían
+caro M10.
 
 Tamaño: M. Depende de: nada.
 
@@ -520,26 +533,48 @@ Se solapan y resulta incómodo. Círculo expandible o colocación vertical.
 
 Tamaño: S. Depende de: diseño (ver abajo).
 
-### M10 — Semana de lunes a domingo
+### M10 — Semana de lunes a domingo ✅ hecho
 
-`getCurrentWeekSaturday()` (`App.tsx:17`) pasa a lunes. Con M5 hecho, las
-dependencias que lo encarecían desaparecen: `canAccessNextWeek` y
-`upcomingWeekUnlockDay` se borran, y el cron de los viernes
-(`.github/workflows/generate-menu.yml`) ya estaba pausado.
+El cálculo del inicio de semana vive ahora en `src/utils/weekStart.ts`, extraído en
+M5 precisamente para esto: el cambio es `daysBack = (dayOfWeek + 6) % 7` en lugar de
+`(dayOfWeek + 1) % 7`. Con M5 hecho, las dependencias que lo encarecían ya no
+existían: `canAccessNextWeek` y `upcomingWeekUnlockDay` se borraron con M5, y el cron
+de los viernes ya estaba desactivado.
+
+Es la única lógica del hito que puede fallar **en silencio** —una fecha mal calculada
+no rompe nada, sólo consulta la fila equivocada—, así que va cubierta por tests:
+domingo (el caso que rompe el `% 7` si se hace mal, porque `getDay()` lo numera 0),
+cruce de mes, cruce de año y el cambio de hora de marzo.
 
 Dos cosas asumidas:
 
 - **Los menús históricos no se migran.** Están indexados por `week_start` en sábado;
-  la vista de semana anterior de M5 buscará lunes y no los encontrará. El historial de
+  la vista de semana anterior de M5 busca lunes y no los encontrará. El historial de
   Laura queda invisible, no borrado. Migrarlo obligaría a re-trocear semanas
   sábado-viernes en semanas lunes-domingo. Los usuarios de beta no tienen historial.
 - **El día del despliegue**, la app no encontrará menú para la semana lunes-domingo en
-  curso y autogenerará uno nuevo sobre días ya vividos. Se evita desplegando en
-  domingo por la noche.
+  curso y autogenerará uno nuevo sobre días ya vividos.
 
-Deuda anotada: las edge functions (`supabase/functions/generate-weekly-menu/`) siguen
-siendo single-tenant y calculan el sábado. Están pausadas; **no reactivarlas sin
-actualizar el inicio de semana**.
+> **Corregido (ago 2026): la ventana de despliegue no es el domingo por la noche.**
+> Este documento decía que sí, y con inicio en lunes es justo el peor momento.
+> Desplegando el domingo a las 23:00, la semana en curso bajo la regla nueva empezó
+> el **lunes anterior** y ya está terminada: la app autogenera un menú para siete
+> días enteramente vividos y lo enseña como "semana actual".
+>
+> Lo correcto es el **lunes de madrugada**: la semana Lun–Dom acaba de empezar y el
+> menú que se genera es el real.
+
+**Revertir aquí sí es seguro**, a diferencia de M1 y M8. Volver a sábado no bloquea a
+nadie ni pierde datos: los menús creados durante el periodo lunes quedarían
+invisibles igual que los de sábado quedan invisibles ahora, y la app regeneraría
+semanas de sábado. Es la única marcha atrás barata de las tres.
+
+Deuda anotada, ahora también en el propio código: las dos edge functions siguen
+siendo single-tenant, llevan su propia copia caduca del generador y calculan el
+sábado. El workflow que las llamaba está **desactivado a mano** en GitHub
+(`gh workflow list` lo confirma) y sus últimas ejecuciones programadas fallaban ya.
+Los tres archivos llevan un aviso en cabecera; **no reactivarlas sin arreglar las
+tres cosas**.
 
 Tamaño: S. Depende de: M5 (conviene, no obliga).
 
@@ -548,15 +583,18 @@ Tamaño: S. Depende de: M5 (conviene, no obliga).
 ## Orden de trabajo
 
 ```
-M1 ──> M2 ──> M2b
-M5 ──> M10
-M7, M8            (independientes, se pueden hacer en cualquier momento)
-M4, M6, M9        (bloqueados por diseño)
+M1 ──> M2 ──> M2b     ✅ hechos
+M5 ──> M10            ✅ hechos
+M7, M8                ✅ hechos
+M6, M9                (bloqueados por diseño)
 ```
 
-M1 antes que nada por el argumento de calendario. M7 y M8 son buenos primeros
-candidatos: pequeños, independientes y de impacto inmediato en la incorporación de
-usuarios.
+M5 fue antes que M10 por el argumento de calendario, y salió bien: mientras la semana
+seguía empezando en sábado, el historial real permitía probar la vista de semana
+anterior con datos de verdad. Después de M10 esa vista queda vacía en los hogares
+antiguos y ya no se puede verificar sin sembrar filas a mano.
+
+Sólo quedan M6 y M9, los dos esperando diseño.
 
 ---
 
@@ -606,18 +644,26 @@ omitió en la Fase 3 porque dependía de que existieran las reglas.
 
 ## Verificación
 
-Sigue sin haber tests en el repo. Cada bloque se verifica levantando el dev server
-(`.claude/launch.json` tiene `weeklymenu-preview` para probar el build de producción),
-en móvil y escritorio, más `npm run build` y `npm run lint`.
+Ya hay tests en el repo: `npm test` (vitest), 68 repartidos entre `menuGenerator`,
+`householdRules`, `degradedMenu` y `weekStart`. Se escribieron para M1/M2 y para M10.
 
-**M1 y M2 son la excepción, y no es opcional.** Entre los dos reescriben las
-comprobaciones de un algoritmo de restricciones de 582 líneas que hoy no tiene
-ninguna prueba, y lo hacen a la vez que multiplican los casos posibles (varios
-ingredientes por plato × reglas combinables). Verificar eso a ojo generando menús no
-es viable.
+El resto se verifica levantando el dev server (`.claude/launch.json` tiene
+`weeklymenu-preview` para probar el build de producción), en móvil y escritorio, más
+`npm run build` y `npm run lint`.
 
-Tests unitarios sobre `generateWeeklyMenu` antes de tocarlo, aunque sean los primeros
-del repo. Como mínimo: que un catálogo válido produzca siete días completos, que cada
-regla activada se cumpla, que dos reglas incompatibles den error explícito en vez de
-menú degradado, y un caso por trampa conocida (lasaña `{pasta, meat}` frente a una
-cena de carne).
+**El criterio para escribir test en vez de mirar a ojo** es si el fallo sería
+silencioso:
+
+- **M1 y M2**: reescribían las comprobaciones de un algoritmo de restricciones de 582
+  líneas multiplicando los casos posibles (varios ingredientes por plato × reglas
+  combinables). Verificar eso generando menús a mano no era viable.
+- **M10**: una fecha de inicio de semana mal calculada no rompe nada, sólo consulta
+  la fila equivocada. De ahí `weekStart.test.ts`.
+
+Lo que sí necesita ojos es el estado vacío: **para probar la vista de semana anterior
+en dev hace falta un hogar que tenga menús de esa semana**. Un hogar sin fila enseña
+—correctamente— la pantalla de "no guardasteis nada", que es fácil confundir con un
+fallo.
+
+Nota de entorno: el `.env` del repo apunta al proyecto **dev** de Supabase, no a
+producción, así que el historial que se ve en local no es el real.

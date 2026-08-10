@@ -1,5 +1,6 @@
 import { WeeklyMenu, DishIdea, NewDishIdea } from '../types'
 import { formatDayName } from '../utils/menuGenerator'
+import { formatWeekRange } from '../utils/weekStart'
 import DishEditor from './DishEditor'
 
 interface MenuAgendaViewProps {
@@ -7,9 +8,8 @@ interface MenuAgendaViewProps {
   dishIdeas: DishIdea[]
   onUpdateDish: (dayISO: string, mealType: 'lunch' | 'dinner', dishSlot: 'starter' | 'main' | 'single', newDishName: string, selectedCategory: 'starter' | 'main' | 'single') => void
   onAddNewDish: (dishData: NewDishIdea) => void
-  weekOffset: 0 | 1
-  canAccessNextWeek: boolean
-  onNavigate: (direction: -1 | 1) => void
+  /** Past weeks are history: shown, never edited. */
+  readOnly: boolean
   isEditing: boolean
   onToggleEditing: (editing: boolean) => void
 }
@@ -17,7 +17,6 @@ interface MenuAgendaViewProps {
 type MenuItem = WeeklyMenu['menu_items'][0]
 
 const DAY_ABBR = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB']
-const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
 /** Today as a local YYYY-MM-DD string, comparable with the ISO days in menu_items. */
 const todayISO = (): string => {
@@ -29,15 +28,6 @@ const dayNumber = (iso: string): string => String(new Date(iso).getDate())
 
 const dayAbbr = (iso: string): string => DAY_ABBR[new Date(iso).getDay()]
 
-/** "18 – 24 de julio", or "30 de julio – 5 de agosto" when the week spans two months. */
-const formatWeekRange = (startISO: string, endISO: string): string => {
-  const start = new Date(startISO)
-  const end = new Date(endISO)
-  return start.getMonth() === end.getMonth()
-    ? `${start.getDate()} – ${end.getDate()} de ${MONTHS[end.getMonth()]}`
-    : `${start.getDate()} de ${MONTHS[start.getMonth()]} – ${end.getDate()} de ${MONTHS[end.getMonth()]}`
-}
-
 /** Dish names of a meal, in course order. */
 const dishesOf = (item: MenuItem | null): string[] => {
   if (!item) return []
@@ -45,7 +35,7 @@ const dishesOf = (item: MenuItem | null): string[] => {
   return [item.starter, item.main].filter((d): d is string => Boolean(d))
 }
 
-export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNewDish, weekOffset, canAccessNextWeek, onNavigate, isEditing, onToggleEditing }: MenuAgendaViewProps) {
+export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNewDish, readOnly, isEditing, onToggleEditing }: MenuAgendaViewProps) {
   // Group menu items by day
   const itemsByDay = menu.menu_items.reduce((acc, item) => {
     if (!acc[item.day]) {
@@ -59,11 +49,10 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
     return acc
   }, {} as Record<string, { lunch: MenuItem | null; dinner: MenuItem | null }>)
 
-  // Sort days chronologically starting from week_start (Saturday)
+  // Sort days chronologically starting from week_start
   const sortedDays = Object.keys(itemsByDay).sort((a, b) => {
     const dateA = new Date(a).getTime()
     const dateB = new Date(b).getTime()
-    // Sort by date value (chronological order) - Saturday should be first
     return dateA - dateB
   })
 
@@ -72,10 +61,13 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
   const secondRowDays = sortedDays.slice(4, 7)
 
   const today = todayISO()
-  // Only the current week can contain today; next week never highlights a day.
-  const todayDay = weekOffset === 0 ? sortedDays.find((d) => d === today) : undefined
+  // No offset needed: only one week of the year contains today, whichever one
+  // is on screen. Weeks entirely in the past or the future highlight nothing.
+  const todayDay = sortedDays.find((d) => d === today)
   const otherDays = sortedDays.filter((d) => d !== todayDay)
-  const isPast = (day: string) => weekOffset === 0 && day < today
+  // Dimming days that have already happened only says something next to a day
+  // that hasn't. A week wholly in the past is shown at full strength.
+  const isPast = (day: string) => Boolean(todayDay) && day < today
 
   /** Coloured circle with the sun/moon glyph. */
   const MealCircle = ({ mealType, size }: { mealType: 'lunch' | 'dinner'; size: number }) => (
@@ -213,7 +205,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
         className="rounded-card border-2 border-crema-300 bg-white p-5 transition-transform duration-180 hover:-translate-y-0.5 hover:shadow-pop"
       >
         {/* One line, like every other card: the day name and its number are read
-            as one label ("Sábado 8"), and splitting them across two block
+            as one label ("Lunes 10"), and splitting them across two block
             elements made next week look like a different screen from this one. */}
         <h3 className="text-xl font-extrabold">
           {formatDayName(day)} {dayNumber(day)}
@@ -291,38 +283,8 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
     )
   }
 
-  // after:-inset-1 widens the tap target to 44px on mobile without changing the 36px visual.
-  const navButton = (direction: -1 | 1, disabled: boolean, label: string, glyph: string) => (
-    <button
-      onClick={() => onNavigate(direction)}
-      disabled={disabled}
-      className="relative flex h-9 w-9 flex-none items-center justify-center rounded-xl border-2 border-crema-300 bg-white text-lg font-extrabold text-tinta-500 transition-colors duration-120 after:absolute after:-inset-1 after:content-[''] hover:bg-crema-100 active:scale-[0.96] focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:text-crema-400 disabled:opacity-40 lg:h-11 lg:w-11 lg:rounded-[14px] lg:after:hidden"
-      aria-label={label}
-    >
-      {glyph}
-    </button>
-  )
-
-  const weekLabel = weekOffset === 0 ? 'SEMANA ACTUAL' : 'PRÓXIMA SEMANA'
-
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 lg:justify-center lg:gap-6">
-        {navButton(-1, weekOffset === 0, 'Ir a la semana actual', '‹')}
-        <div className="text-center">
-          <p className="hidden text-[13px] font-extrabold tracking-[0.08em] text-verde-500 lg:block">
-            {weekLabel}
-          </p>
-          <h2 className="text-lg font-extrabold lg:text-[30px]">
-            {formatWeekRange(menu.week_start, menu.week_end)}
-          </h2>
-          <p className="text-xs font-extrabold tracking-[0.08em] text-verde-500 lg:hidden">
-            {weekLabel}
-          </p>
-        </div>
-        {navButton(1, weekOffset === 1 || !canAccessNextWeek, 'Ir a la próxima semana', '›')}
-      </div>
-
       {/* Mobile: today highlighted, every other day as a compact row */}
       <div className="mt-4 flex flex-col gap-2.5 lg:hidden">
         {sortedDays.map((day) =>
@@ -357,9 +319,11 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
         )}
       </div>
 
-      <button onClick={() => onToggleEditing(true)} className="btn-dark mt-4 w-full lg:hidden">
-        ✎ Editar la semana
-      </button>
+      {!readOnly && (
+        <button onClick={() => onToggleEditing(true)} className="btn-dark mt-4 w-full lg:hidden">
+          ✎ Editar la semana
+        </button>
+      )}
     </div>
   )
 }

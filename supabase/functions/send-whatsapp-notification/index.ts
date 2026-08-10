@@ -137,6 +137,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // STALE — DO NOT REACTIVATE AS IS. The app moved its weeks to Monday
+    // (see src/utils/weekStart.ts); this still looks up a Saturday
+    // `week_start` and would never find the menu it means to send.
+    //
     // Get next week's Saturday (week starts on next Saturday)
     const today = new Date()
     const weekStart = new Date(today)

@@ -7,37 +7,14 @@ import CatalogView from './components/CatalogView'
 import FamilyView from './components/FamilyView'
 import CatalogChecklist from './components/CatalogChecklist'
 import FeedbackButton from './components/FeedbackButton'
+import WeekNav from './components/WeekNav'
 import { generateWeeklyMenu } from './utils/menuGenerator'
 import { isCatalogReady } from './utils/catalogCheck'
 import { parseRules } from './lib/householdRules'
 import { describeDegradedMenu } from './lib/degradedMenu'
 import { STARTER_CATALOG } from './data/starterCatalog'
-import { SETTINGS } from './config'
 import { identifyHousehold, trackEvent } from './lib/analytics'
-
-/** Return the Saturday that starts the current week period (Sat–Fri). */
-const getCurrentWeekSaturday = (): Date => {
-  const today = new Date()
-  const dayOfWeek = today.getDay() // 0=Sun … 6=Sat
-  const daysBack = (dayOfWeek + 1) % 7 // Sat=0, Sun=1, Mon=2, … Fri=6
-  const saturday = new Date(today)
-  saturday.setDate(today.getDate() - daysBack)
-  saturday.setHours(0, 0, 0, 0)
-  return saturday
-}
-
-const getNextWeekSaturday = (): Date => {
-  const next = getCurrentWeekSaturday()
-  next.setDate(next.getDate() + 7)
-  return next
-}
-
-const formatLocalDate = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
+import { WEEK_RANGE, formatLocalDate, weekEndFor, weekKeyFor, weekStartFor } from './utils/weekStart'
 
 /** The "¡Ñam!" wordmark, which doubles as the way back to the weekly plan. */
 function Wordmark({ as: Tag, onClick }: { as: 'h1' | 'div'; onClick: () => void }) {
@@ -68,27 +45,42 @@ function App({ household }: { household: Household }) {
   useEffect(() => {
     rulesRef.current = rules
   }, [rules])
-  const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
-  const [nextWeekMenu, setNextWeekMenu] = useState<WeeklyMenu | null>(null)
-  const [weekOffset, setWeekOffset] = useState<0 | 1>(0)
-  const [isLoadingNextWeek, setIsLoadingNextWeek] = useState(false)
+  // Every week the session has looked at, keyed by its `week_start`. Keyed by
+  // the date and not by the offset on purpose: it is what the realtime payloads
+  // carry, and an offset stops meaning the same week once midnight rolls the
+  // calendar over.
+  const [menusByWeek, setMenusByWeek] = useState<Record<string, WeeklyMenu>>({})
+  const [weekOffset, setWeekOffset] = useState(0)
+  const [loadingWeek, setLoadingWeek] = useState<string | null>(null)
   const [dishIdeas, setDishIdeas] = useState<DishIdea[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [view, setView] = useState<'agenda' | 'catalog' | 'family'>('agenda')
-  const [degraded, setDegraded] = useState<{ title: string; detail: string } | null>(null)
+  // Tagged with the week it was produced for, so the warning does not follow the
+  // user onto a week it says nothing about.
+  const [degraded, setDegraded] = useState<{ title: string; detail: string; weekStart: string } | null>(null)
   const isGeneratingMenuRef = useRef(false)
+
+  const displayedWeekKey = weekKeyFor(weekOffset)
+  const displayedMenu = menusByWeek[displayedWeekKey] ?? null
+  // History is shown, never edited or regenerated.
+  const readOnly = weekOffset < 0
+
+  const storeMenu = useCallback((menu: WeeklyMenu) => {
+    setMenusByWeek((prev) => ({ ...prev, [menu.week_start]: menu }))
+  }, [])
+
+  // The realtime effect subscribes once per household, so it reads the loaded
+  // weeks through a ref rather than closing over a stale copy.
+  const menusByWeekRef = useRef(menusByWeek)
+  useEffect(() => {
+    menusByWeekRef.current = menusByWeek
+  }, [menusByWeek])
 
   useEffect(() => {
     identifyHousehold(householdId)
   }, [householdId])
-
-  const canAccessNextWeek = (): boolean => {
-    const dayOfWeek = new Date().getDay()
-    // Sat(6) starts a new week — only unlock Wed(3)–Fri(5)
-    return dayOfWeek >= SETTINGS.upcomingWeekUnlockDay && dayOfWeek !== 6
-  }
 
   const loadDishIdeas = useCallback(async () => {
     try {
@@ -109,7 +101,6 @@ function App({ household }: { household: Household }) {
   const generateNewMenu = useCallback(async (
     weekStart: Date,
     dishes: DishIdea[],
-    setMenu: (menu: WeeklyMenu) => void = setCurrentMenu,
     trigger: 'manual' | 'next_week' = 'manual'
   ) => {
     if (dishes.length === 0) {
@@ -124,15 +115,18 @@ function App({ household }: { household: Household }) {
 
     isGeneratingMenuRef.current = true
     try {
-      const weekEnd = new Date(weekStart)
-      weekEnd.setDate(weekStart.getDate() + 6)
+      const weekEnd = weekEndFor(weekStart)
 
       const result = generateWeeklyMenu({ dishIdeas: dishes, weekStart, rules })
 
       // The menu is saved either way — a degraded week beats no week — but the
       // household is told, instead of receiving something that breaks the rules
       // it just set and never hearing about it.
-      setDegraded(result.degraded ? describeDegradedMenu(result.unmet) : null)
+      setDegraded(
+        result.degraded
+          ? { ...describeDegradedMenu(result.unmet), weekStart: formatLocalDate(weekStart) }
+          : null
+      )
       if (result.degraded) {
         trackEvent('menu_degraded', {
           unmet: result.unmet.map((r) => r.label).join(', ') || 'rule_combination',
@@ -168,7 +162,7 @@ function App({ household }: { household: Household }) {
           .single()
 
         if (updateError) throw updateError
-        setMenu(updateData as WeeklyMenu)
+        storeMenu(updateData as WeeklyMenu)
         setError(null)
         return
       }
@@ -196,14 +190,14 @@ function App({ household }: { household: Household }) {
             .single()
 
           if (updateError) throw updateError
-          setMenu(updateData as WeeklyMenu)
+          storeMenu(updateData as WeeklyMenu)
           setError(null)
           return
         }
         throw error
       }
 
-      setMenu(data as WeeklyMenu)
+      storeMenu(data as WeeklyMenu)
       setError(null)
       trackEvent('menu_generated', { week_start: menuData.week_start, trigger })
     } catch (err) {
@@ -214,33 +208,32 @@ function App({ household }: { household: Household }) {
     } finally {
       isGeneratingMenuRef.current = false
     }
-  }, [householdId, rules])
+  }, [householdId, rules, storeMenu])
 
   const loadCurrentMenu = useCallback(async (shouldGenerateIfMissing = false) => {
     try {
-      const weekStart = getCurrentWeekSaturday()
-      const weekStartFormatted = formatLocalDate(weekStart)
+      const weekStart = weekStartFor(0)
 
       const { data, error } = await supabase
         .from('weekly_menus')
         .select('*')
         .eq('household_id', householdId)
-        .eq('week_start', weekStartFormatted)
+        .eq('week_start', formatLocalDate(weekStart))
         .maybeSingle()
 
       if (error && error.code !== 'PGRST116') throw error
 
       if (data) {
-        setCurrentMenu(data as WeeklyMenu)
+        storeMenu(data as WeeklyMenu)
         setError(null)
       } else if (shouldGenerateIfMissing && dishIdeas.length > 0 && !isGeneratingMenuRef.current) {
-        await generateNewMenu(weekStart, dishIdeas, setCurrentMenu)
+        await generateNewMenu(weekStart, dishIdeas)
       }
     } catch (err) {
       console.error('Error loading menu:', err)
       setError(err instanceof Error ? err.message : 'No se pudo cargar el menú')
     }
-  }, [householdId, dishIdeas, generateNewMenu])
+  }, [householdId, dishIdeas, generateNewMenu, storeMenu])
 
   useEffect(() => {
     let mounted = true
@@ -263,15 +256,10 @@ function App({ household }: { household: Household }) {
         }
 
         if (mounted) {
-          const weekStart = getCurrentWeekSaturday()
+          // Only the current week is fetched up front, and only it is generated
+          // when missing. Past and future weeks load on demand, when navigated to.
+          const weekStart = weekStartFor(0)
           const weekStartFormatted = formatLocalDate(weekStart)
-          console.log('📅 Querying menu (initial load) with week_start:', {
-            weekStartDate: weekStart,
-            weekStartFormatted,
-            weekStartISO: weekStart.toISOString().split('T')[0],
-            weekStartDay: weekStart.getDay(),
-            weekStartDayName: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekStart.getDay()],
-          })
 
           const { data: menuData, error: menuError } = await supabase
             .from('weekly_menus')
@@ -283,23 +271,26 @@ function App({ household }: { household: Household }) {
           if (menuError && menuError.code !== 'PGRST116') throw menuError
 
           if (menuData) {
-            setCurrentMenu(menuData as WeeklyMenu)
+            storeMenu(menuData as WeeklyMenu)
           } else if (dishesData && dishesData.length > 0 && !isGeneratingMenuRef.current) {
             isGeneratingMenuRef.current = true
             try {
-              const weekEnd = new Date(weekStart)
-              weekEnd.setDate(weekStart.getDate() + 6)
+              const weekEnd = weekEndFor(weekStart)
 
               const result = generateWeeklyMenu({
                 dishIdeas: dishesData as DishIdea[],
                 weekStart,
                 rules: rulesRef.current,
               })
-              setDegraded(result.degraded ? describeDegradedMenu(result.unmet) : null)
+              setDegraded(
+                result.degraded
+                  ? { ...describeDegradedMenu(result.unmet), weekStart: weekStartFormatted }
+                  : null
+              )
 
               const newMenuData = {
                 household_id: householdId,
-                week_start: formatLocalDate(weekStart),
+                week_start: weekStartFormatted,
                 week_end: formatLocalDate(weekEnd),
                 menu_items: result.items,
               }
@@ -315,7 +306,7 @@ function App({ household }: { household: Household }) {
               }
 
               if (insertedMenu && mounted) {
-                setCurrentMenu(insertedMenu as WeeklyMenu)
+                storeMenu(insertedMenu as WeeklyMenu)
                 trackEvent('menu_generated', {
                   week_start: newMenuData.week_start,
                   trigger: 'auto_initial_load',
@@ -354,29 +345,24 @@ function App({ household }: { household: Household }) {
           filter: `household_id=eq.${householdId}`,
         },
         async (payload) => {
-          if (mounted && !isGeneratingMenuRef.current) {
-            const currentWeekStart = formatLocalDate(getCurrentWeekSaturday())
-            const nextWeekStart = formatLocalDate(getNextWeekSaturday())
-            const changedWeekStart = (payload.new as Partial<WeeklyMenu> | null)?.week_start
+          if (!mounted || isGeneratingMenuRef.current) return
 
-            if (changedWeekStart === currentWeekStart) {
-              const { data } = await supabase
-                .from('weekly_menus')
-                .select('*')
-                .eq('household_id', householdId)
-                .eq('week_start', currentWeekStart)
-                .maybeSingle()
-              if (data && mounted) setCurrentMenu(data as WeeklyMenu)
-            } else if (changedWeekStart === nextWeekStart) {
-              const { data } = await supabase
-                .from('weekly_menus')
-                .select('*')
-                .eq('household_id', householdId)
-                .eq('week_start', nextWeekStart)
-                .maybeSingle()
-              if (data && mounted) setNextWeekMenu(data as WeeklyMenu)
-            }
-          }
+          const changedWeekStart = (payload.new as Partial<WeeklyMenu> | null)?.week_start
+          if (!changedWeekStart) return
+
+          // Refresh only weeks this session has already loaded. Deliberately a
+          // membership test and not a range check: a week nobody is looking at
+          // is not worth a fetch, and this needs no edit if the navigation
+          // range is ever widened.
+          if (!(changedWeekStart in menusByWeekRef.current)) return
+
+          const { data } = await supabase
+            .from('weekly_menus')
+            .select('*')
+            .eq('household_id', householdId)
+            .eq('week_start', changedWeekStart)
+            .maybeSingle()
+          if (data && mounted) storeMenu(data as WeeklyMenu)
         }
       )
       .subscribe()
@@ -411,42 +397,52 @@ function App({ household }: { household: Household }) {
       if (menuChannel) supabase.removeChannel(menuChannel)
       if (dishChannel) supabase.removeChannel(dishChannel)
     }
-  }, [householdId])
+  }, [householdId, storeMenu])
 
   const handleWeekNav = useCallback(async (direction: -1 | 1) => {
-    const newOffset = (weekOffset + direction) as 0 | 1
-    if (newOffset < 0 || newOffset > 1) return
+    const newOffset = weekOffset + direction
+    if (newOffset < WEEK_RANGE.min || newOffset > WEEK_RANGE.max) return
 
     setWeekOffset(newOffset)
+    trackEvent('week_viewed', { offset: newOffset })
 
-    if (newOffset === 1 && !nextWeekMenu) {
-      trackEvent('next_week_menu_viewed')
-      setIsLoadingNextWeek(true)
-      try {
-        const nextWeekStart = getNextWeekSaturday()
-        const { data, error } = await supabase
-          .from('weekly_menus')
-          .select('*')
-          .eq('household_id', householdId)
-          .eq('week_start', formatLocalDate(nextWeekStart))
-          .maybeSingle()
+    const weekStart = weekStartFor(newOffset)
+    const weekKey = formatLocalDate(weekStart)
+    if (menusByWeek[weekKey]) return
 
-        if (error && error.code !== 'PGRST116') throw error
+    // Kept alongside `week_viewed` so the existing Amplitude series is not
+    // broken. It fires under the same condition it always did — reaching next
+    // week for the first time — even though the name no longer covers the
+    // navigation as a whole.
+    if (newOffset === 1) trackEvent('next_week_menu_viewed')
 
-        if (data) {
-          setNextWeekMenu(data as WeeklyMenu)
-        } else {
-          await generateNewMenu(nextWeekStart, dishIdeas, setNextWeekMenu, 'next_week')
-        }
-      } catch (err) {
-        console.error('Error loading next week menu:', err)
-        setError(err instanceof Error ? err.message : 'No se pudo cargar el menú de la próxima semana')
-        setWeekOffset(0)
-      } finally {
-        setIsLoadingNextWeek(false)
+    setLoadingWeek(weekKey)
+    try {
+      const { data, error } = await supabase
+        .from('weekly_menus')
+        .select('*')
+        .eq('household_id', householdId)
+        .eq('week_start', weekKey)
+        .maybeSingle()
+
+      if (error && error.code !== 'PGRST116') throw error
+
+      // A missing week is only filled in going forward. Backwards, nothing
+      // saved means nothing was planned, and inventing a menu for days already
+      // lived would be inventing history.
+      if (data) {
+        storeMenu(data as WeeklyMenu)
+      } else if (newOffset > 0) {
+        await generateNewMenu(weekStart, dishIdeas, 'next_week')
       }
+    } catch (err) {
+      console.error('Error loading week menu:', err)
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el menú de esa semana')
+      setWeekOffset(weekOffset)
+    } finally {
+      setLoadingWeek(null)
     }
-  }, [weekOffset, nextWeekMenu, dishIdeas, generateNewMenu, householdId])
+  }, [weekOffset, menusByWeek, dishIdeas, generateNewMenu, householdId, storeMenu])
 
   const updateMenuItem = useCallback(async (
     dayISO: string,
@@ -455,9 +451,8 @@ function App({ household }: { household: Household }) {
     newDishName: string,
     selectedCategory: 'starter' | 'main' | 'single'
   ) => {
-    const activeMenu = weekOffset === 0 ? currentMenu : nextWeekMenu
-    const setActiveMenu = weekOffset === 0 ? setCurrentMenu : setNextWeekMenu
-    if (!activeMenu) return
+    const activeMenu = menusByWeek[displayedWeekKey]
+    if (!activeMenu || readOnly) return
 
     const updatedItems = activeMenu.menu_items.map((item) => {
       if (item.day !== dayISO || item.meal_type !== mealType) return item
@@ -479,8 +474,7 @@ function App({ household }: { household: Household }) {
       return { ...item, [dishSlot]: newDishName }
     })
 
-    const updatedMenu = { ...activeMenu, menu_items: updatedItems }
-    setActiveMenu(updatedMenu)
+    storeMenu({ ...activeMenu, menu_items: updatedItems })
 
     try {
       await supabase
@@ -497,9 +491,9 @@ function App({ household }: { household: Household }) {
       })
     } catch (err) {
       console.error('Error updating menu item:', err)
-      setActiveMenu(activeMenu)
+      storeMenu(activeMenu)
     }
-  }, [currentMenu, nextWeekMenu, weekOffset, dishIdeas])
+  }, [menusByWeek, displayedWeekKey, readOnly, dishIdeas, storeMenu])
 
   const handleAddNewDish = useCallback(async (dishData: NewDishIdea) => {
     try {
@@ -588,7 +582,9 @@ function App({ household }: { household: Household }) {
     )
   }
 
-  if (error && !currentMenu) {
+  // The full-screen error is for "nothing loaded at all". It stays tied to the
+  // current week: an empty past week is a normal state, not a broken app.
+  if (error && !menusByWeek[weekKeyFor(0)]) {
     return (
       <div className="min-h-screen flex items-center justify-center p-7">
         <div className="card max-w-md border-[3px] border-rojo-500 text-center" role="alert">
@@ -617,7 +613,6 @@ function App({ household }: { household: Household }) {
     )
   }
 
-  const displayedMenu = weekOffset === 0 ? currentMenu : nextWeekMenu
   const catalogReady = isCatalogReady(dishIdeas, rules)
 
   return (
@@ -654,7 +649,7 @@ function App({ household }: { household: Household }) {
               >
                 Familia
               </button>
-              {view === 'agenda' && displayedMenu && (
+              {view === 'agenda' && displayedMenu && !readOnly && (
                 <button onClick={() => setIsEditing(true)} className="btn-dark hidden lg:inline-flex">
                   ✎ Editar la semana
                 </button>
@@ -670,7 +665,7 @@ function App({ household }: { household: Household }) {
             </div>
           )}
 
-          {degraded && view === 'agenda' && !isEditing && (
+          {degraded?.weekStart === displayedWeekKey && view === 'agenda' && !isEditing && (
             <div
               className="mb-4 rounded-2xl border-2 border-amarillo-500 bg-amarillo-100 p-4"
               role="status"
@@ -716,69 +711,98 @@ function App({ household }: { household: Household }) {
           ) : view === 'family' ? (
             <FamilyView
               household={household}
-              onRegenerateWeek={() =>
-                generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)
-              }
-            />
-          ) : isLoadingNextWeek ? (
-            <div className="card py-12 text-center" role="status" aria-live="polite">
-              <div className="mx-auto h-14 w-14 rounded-full border-4 border-crema-300 border-t-verde-500 animate-spin motion-reduce:animate-pulse" />
-              <p className="mt-4 text-lg font-extrabold">Montando la próxima semana…</p>
-            </div>
-          ) : displayedMenu ? (
-            <MenuAgendaView
-              menu={displayedMenu}
-              dishIdeas={dishIdeas}
-              onUpdateDish={updateMenuItem}
-              onAddNewDish={handleAddNewDish}
-              weekOffset={weekOffset}
-              canAccessNextWeek={canAccessNextWeek()}
-              onNavigate={handleWeekNav}
-              isEditing={isEditing}
-              onToggleEditing={setIsEditing}
+              onRegenerateWeek={() => generateNewMenu(weekStartFor(0), dishIdeas)}
             />
           ) : (
-            <div className="card mx-auto max-w-md text-center">
-              <div
-                className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-crema-200 text-[30px]"
-                aria-hidden="true"
-              >
-                🍽
-              </div>
-              <h2 className="mt-[18px] text-lg font-extrabold">
-                Aún no hay plan para esta semana
-              </h2>
-              {catalogReady ? (
-                <>
-                  <p className="mt-2 text-sm font-bold font-sans text-tinta-500">
-                    Vuestro catálogo ya da para una semana entera.
-                  </p>
-                  <button
-                    onClick={() => generateNewMenu(getCurrentWeekSaturday(), dishIdeas, setCurrentMenu)}
-                    className="btn-primary mt-4 w-full"
-                  >
-                    Generar menú
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="mt-2 text-sm font-bold font-sans text-tinta-500">
-                    {dishIdeas.length === 0
-                      ? 'Necesitáis al menos 20 platos en el catálogo para montar la semana.'
-                      : `Lleváis ${dishIdeas.length} ${dishIdeas.length === 1 ? 'plato' : 'platos'}. Faltan algunos mínimos para montar la semana.`}
-                  </p>
-                  <div className="mt-4 text-left">
-                    <CatalogChecklist dishIdeas={dishIdeas} rules={rules} />
-                  </div>
-                  <button onClick={() => setView('catalog')} className="btn-primary mt-4 w-full">
-                    Añadir platos
-                  </button>
-                  <button onClick={handleSeedCatalog} className="btn-secondary mt-2 w-full">
-                    Usar el catálogo sugerido
-                  </button>
-                </>
+            <>
+              {/* Outside the agenda component so that a week with no menu saved
+                  is still navigable — otherwise an empty past week traps you. */}
+              {!isEditing && (
+                <WeekNav
+                  weekOffset={weekOffset}
+                  canGoBack={weekOffset > WEEK_RANGE.min}
+                  canGoForward={weekOffset < WEEK_RANGE.max}
+                  onNavigate={handleWeekNav}
+                />
               )}
-            </div>
+
+              {loadingWeek ? (
+                <div className="card mt-4 py-12 text-center" role="status" aria-live="polite">
+                  <div className="mx-auto h-14 w-14 rounded-full border-4 border-crema-300 border-t-verde-500 animate-spin motion-reduce:animate-pulse" />
+                  <p className="mt-4 text-lg font-extrabold">
+                    {/* Going back only ever fetches; going forward may generate. */}
+                    {readOnly ? 'Buscando esa semana…' : 'Montando la próxima semana…'}
+                  </p>
+                </div>
+              ) : displayedMenu ? (
+                <MenuAgendaView
+                  menu={displayedMenu}
+                  dishIdeas={dishIdeas}
+                  onUpdateDish={updateMenuItem}
+                  onAddNewDish={handleAddNewDish}
+                  readOnly={readOnly}
+                  isEditing={isEditing}
+                  onToggleEditing={setIsEditing}
+                />
+              ) : readOnly ? (
+                <div className="card mx-auto mt-4 max-w-md text-center">
+                  <div
+                    className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-crema-200 text-[30px]"
+                    aria-hidden="true"
+                  >
+                    🗓
+                  </div>
+                  <h2 className="mt-[18px] text-lg font-extrabold">
+                    De esta semana no guardasteis nada
+                  </h2>
+                  <p className="mt-2 text-sm font-bold font-sans text-tinta-500">
+                    Aquí aparecen los menús de semanas anteriores, tal y como quedaron.
+                  </p>
+                </div>
+              ) : (
+                <div className="card mx-auto mt-4 max-w-md text-center">
+                  <div
+                    className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-crema-200 text-[30px]"
+                    aria-hidden="true"
+                  >
+                    🍽
+                  </div>
+                  <h2 className="mt-[18px] text-lg font-extrabold">
+                    Aún no hay plan para esta semana
+                  </h2>
+                  {catalogReady ? (
+                    <>
+                      <p className="mt-2 text-sm font-bold font-sans text-tinta-500">
+                        Vuestro catálogo ya da para una semana entera.
+                      </p>
+                      <button
+                        onClick={() => generateNewMenu(weekStartFor(weekOffset), dishIdeas)}
+                        className="btn-primary mt-4 w-full"
+                      >
+                        Generar menú
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-sm font-bold font-sans text-tinta-500">
+                        {dishIdeas.length === 0
+                          ? 'Necesitáis al menos 20 platos en el catálogo para montar la semana.'
+                          : `Lleváis ${dishIdeas.length} ${dishIdeas.length === 1 ? 'plato' : 'platos'}. Faltan algunos mínimos para montar la semana.`}
+                      </p>
+                      <div className="mt-4 text-left">
+                        <CatalogChecklist dishIdeas={dishIdeas} rules={rules} />
+                      </div>
+                      <button onClick={() => setView('catalog')} className="btn-primary mt-4 w-full">
+                        Añadir platos
+                      </button>
+                      <button onClick={handleSeedCatalog} className="btn-secondary mt-2 w-full">
+                        Usar el catálogo sugerido
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>
