@@ -23,8 +23,8 @@ sin salida.
 | M2 — reglas por hogar | **En producción** (PR #11, ago 2026) |
 | M2b — consecuencias | **En producción** (PR #11), salvo el override manual → aplazado a M6 |
 | M4 — poda del catálogo en el onboarding | **En producción** (PR #11), resuelto por el onboarding v2 |
-| M5 — semana anterior y siguiente | **Hecho**, pendiente de mergear (ago 2026) |
-| M10 — semana de lunes a domingo | **Hecho**, pendiente de mergear (ago 2026) |
+| M5 — semana anterior y siguiente | **En producción** (PR #14, ago 2026) |
+| M10 — semana de lunes a domingo | **En producción** (PR #14, ago 2026) |
 | M6, M9 | Pendientes |
 
 Siguiente bloque de trabajo: **M6 y M9**, que siguen esperando specs de Claude Design
@@ -426,7 +426,7 @@ en la entrevista.
 
 Tamaño: M. Depende de: M2b (los mínimos), diseño (ver abajo).
 
-### M5 — Semana siguiente y anterior, siempre visibles ✅ hecho
+### M5 — Semana siguiente y anterior, siempre visibles ✅ en producción
 
 Must-have explícito de Cristina para la siguiente; la anterior la pide también
 ("ampliar la vista temporal a semanas pasadas") y sale barata si se hace a la vez.
@@ -533,7 +533,7 @@ Se solapan y resulta incómodo. Círculo expandible o colocación vertical.
 
 Tamaño: S. Depende de: diseño (ver abajo).
 
-### M10 — Semana de lunes a domingo ✅ hecho
+### M10 — Semana de lunes a domingo ✅ en producción
 
 El cálculo del inicio de semana vive ahora en `src/utils/weekStart.ts`, extraído en
 M5 precisamente para esto: el cambio es `daysBack = (dayOfWeek + 6) % 7` en lugar de
@@ -563,6 +563,13 @@ Dos cosas asumidas:
 >
 > Lo correcto es el **lunes de madrugada**: la semana Lun–Dom acaba de empezar y el
 > menú que se genera es el real.
+>
+> **Lo que pasó de verdad**: se desplegó el **lunes 10 de agosto de 2026 por la
+> noche**, no de madrugada. Costó un día de siete — el menú del lunes se generó con
+> el día ya vivido — y salió sin incidencias, probado en producción. La regla que
+> queda para la próxima vez es que dentro de una misma semana **cuanto antes,
+> mejor**: si se pasa el lunes, la siguiente ventana buena es el lunes siguiente, no
+> el martes.
 
 **Revertir aquí sí es seguro**, a diferencia de M1 y M8. Volver a sábado no bloquea a
 nadie ni pierde datos: los menús creados durante el periodo lunes quedarían
@@ -583,9 +590,9 @@ Tamaño: S. Depende de: M5 (conviene, no obliga).
 ## Orden de trabajo
 
 ```
-M1 ──> M2 ──> M2b     ✅ hechos
-M5 ──> M10            ✅ hechos
-M7, M8                ✅ hechos
+M1 ──> M2 ──> M2b     ✅ en producción
+M5 ──> M10            ✅ en producción
+M7, M8                ✅ en producción
 M6, M9                (bloqueados por diseño)
 ```
 
