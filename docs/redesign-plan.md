@@ -375,13 +375,13 @@ Arreglo propuesto (pequeño): reservar `navigator.share` para dispositivos táct
 (`matchMedia('(pointer: coarse)')` o `navigator.maxTouchPoints > 0`) y copiar siempre al
 portapapeles en escritorio, con el toast "Código copiado" que ya está implementado.
 
-### 2. El logotipo no se percibe como el camino de vuelta
-Al estar en Familia o Platos no se ve cómo volver al plan semanal. El logotipo es el botón de
-vuelta (decisión de la Fase 3), pero no se lee como tal.
+### 2. El logotipo no se percibe como el camino de vuelta — resuelto (ago 2026)
+Al estar en Familia o Platos no se veía cómo volver al plan semanal. El logotipo era el botón
+de vuelta (decisión de la Fase 3), pero no se leía como tal.
 
-Requiere decisión de diseño. Nota: `design-tokens.md` §6 reserva un z-index para una
-**"nav inferior"** que ninguna spec llega a describir. Lo más coherente sería una navegación
-explícita de tres destinos (Semana / Platos / Familia) en lugar de depender del logotipo.
+Resuelto con la navegación de tres destinos de `specs/navigation.md` (parte de M6): barra
+inferior fija en móvil, pestañas en la cabecera en escritorio, y el logotipo pasa a ser sólo
+marca. Ocupa por fin el z-index que `design-tokens.md` §6 reservaba para la "nav inferior".
 
 ### 3. El código familiar es largo y confuso
 Hoy son **8 caracteres alfanuméricos** en mayúsculas, generados por el `DEFAULT` de la columna:

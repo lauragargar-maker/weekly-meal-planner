@@ -6,8 +6,11 @@ import MenuAgendaView from './components/MenuAgendaView'
 import CatalogView from './components/CatalogView'
 import FamilyView from './components/FamilyView'
 import CatalogChecklist from './components/CatalogChecklist'
-import FeedbackButton from './components/FeedbackButton'
 import WeekNav from './components/WeekNav'
+import BottomNav from './components/BottomNav'
+import { DESTINATIONS, Destination } from './components/destinations'
+import FeedbackSheet, { FeedbackScreen } from './components/FeedbackSheet'
+import { IconFeedback } from './components/icons'
 import { generateWeeklyMenu } from './utils/menuGenerator'
 import { isCatalogReady } from './utils/catalogCheck'
 import { parseRules } from './lib/householdRules'
@@ -16,19 +19,24 @@ import { STARTER_CATALOG } from './data/starterCatalog'
 import { identifyHousehold, trackEvent } from './lib/analytics'
 import { WEEK_RANGE, formatLocalDate, weekEndFor, weekKeyFor, weekStartFor } from './utils/weekStart'
 
-/** The "¡Ñam!" wordmark, which doubles as the way back to the weekly plan. */
-function Wordmark({ as: Tag, onClick }: { as: 'h1' | 'div'; onClick: () => void }) {
+/**
+ * The "¡Ñam!" wordmark. It used to be the way back to the weekly plan; now that
+ * there are three explicit destinations it is only branding — tapping it does
+ * nothing. See `specs/navigation.md`.
+ */
+function Wordmark({ as: Tag }: { as: 'h1' | 'div' }) {
   return (
-    <Tag className="contents">
-      <button
-        onClick={onClick}
-        aria-label="Ir al plan semanal"
-        className="inline-block -rotate-2 text-[28px] font-extrabold leading-none text-rojo-500 focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2 lg:text-[34px]"
-      >
-        ¡Ñam!
-      </button>
+    <Tag className="inline-block -rotate-2 text-[28px] font-extrabold leading-none text-rojo-500 lg:text-[34px]">
+      ¡Ñam!
     </Tag>
   )
+}
+
+/** What the feedback payload calls each destination. */
+const FEEDBACK_SCREEN: Record<Destination, FeedbackScreen> = {
+  agenda: 'semana',
+  catalog: 'platos',
+  family: 'familia',
 }
 
 function App({ household }: { household: Household }) {
@@ -56,7 +64,8 @@ function App({ household }: { household: Household }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [view, setView] = useState<'agenda' | 'catalog' | 'family'>('agenda')
+  const [view, setView] = useState<Destination>('agenda')
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   // Tagged with the week it was produced for, so the warning does not follow the
   // user onto a week it says nothing about.
   const [degraded, setDegraded] = useState<{ title: string; detail: string; weekStart: string } | null>(null)
@@ -81,6 +90,16 @@ function App({ household }: { household: Household }) {
   useEffect(() => {
     identifyHousehold(householdId)
   }, [householdId])
+
+  /**
+   * Each destination starts at the top; only coming back from a sheet keeps the
+   * scroll position, and a sheet never changes the destination.
+   */
+  const goTo = (destination: Destination) => {
+    if (destination === view) return
+    setView(destination)
+    window.scrollTo({ top: 0 })
+  }
 
   const loadDishIdeas = useCallback(async () => {
     try {
@@ -617,48 +636,56 @@ function App({ household }: { household: Household }) {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-[1280px] px-[22px] pt-4 pb-7 lg:px-10 lg:pt-7 lg:pb-11">
-        {!isEditing && (
-          <header className="flex items-start justify-between gap-4 lg:items-center">
-            <div className="flex items-baseline gap-3">
-              {/* On the agenda the logo is the page h1; the other views bring their own. */}
-              <Wordmark as={view === 'agenda' ? 'h1' : 'div'} onClick={() => setView('agenda')} />
-              {view === 'agenda' && (
-                <span className="hidden text-[15px] font-extrabold text-tinta-500 lg:inline">
-                  {household.name} · código {household.join_code}
-                </span>
-              )}
-            </div>
+      <div className="mx-auto max-w-[1280px] px-[22px] pt-4 pb-[calc(76px+env(safe-area-inset-bottom))] lg:px-10 lg:pt-7 md:pb-7 lg:pb-11">
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 lg:gap-6">
+            {/* On the agenda the logo is the page h1; the other views bring their own. */}
+            <Wordmark as={view === 'agenda' ? 'h1' : 'div'} />
 
-            <nav className="flex items-center gap-2 lg:gap-3">
-              <button
-                onClick={() => setView(view === 'catalog' ? 'agenda' : 'catalog')}
-                aria-current={view === 'catalog' ? 'page' : undefined}
-                className={`btn-secondary !px-4 !py-2 !min-h-[40px] !text-sm ${
-                  view === 'catalog' ? '!border-tinta-900 !text-tinta-900' : ''
-                }`}
-              >
-                Platos
-              </button>
-              <button
-                onClick={() => setView(view === 'family' ? 'agenda' : 'family')}
-                aria-current={view === 'family' ? 'page' : undefined}
-                className={`btn-secondary !px-4 !py-2 !min-h-[40px] !text-sm ${
-                  view === 'family' ? '!border-tinta-900 !text-tinta-900' : ''
-                }`}
-              >
-                Familia
-              </button>
-              {view === 'agenda' && displayedMenu && !readOnly && (
-                <button onClick={() => setIsEditing(true)} className="btn-dark hidden lg:inline-flex">
-                  ✎ Editar la semana
-                </button>
-              )}
+            {/* Above 768px the three destinations live here instead of in the bottom bar. */}
+            <nav aria-label="Principal" className="hidden items-center gap-4 md:flex">
+              {DESTINATIONS.map(({ id, label }) => {
+                const isActive = id === view
+                return (
+                  <button
+                    key={id}
+                    onClick={() => goTo(id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`border-b-[3px] pb-[3px] text-[15px] font-extrabold transition-colors duration-120 focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2 ${
+                      isActive
+                        ? 'border-rojo-500 text-rojo-600'
+                        : 'border-transparent text-tinta-500 hover:border-crema-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
             </nav>
-          </header>
-        )}
+          </div>
 
-        <main className={isEditing ? '' : 'mt-3.5 lg:mt-6'}>
+          <div className="flex items-center gap-3">
+            {view === 'agenda' && displayedMenu && !readOnly && !isEditing && (
+              <button onClick={() => setIsEditing(true)} className="btn-dark hidden lg:inline-flex">
+                ✎ Editar la semana
+              </button>
+            )}
+            <span className="hidden text-[13px] font-extrabold text-tinta-500 md:inline">
+              {household.name}
+            </span>
+            {session?.user && (
+              <button
+                onClick={() => setFeedbackOpen(true)}
+                aria-label="Contarnos qué tal"
+                className="flex h-11 w-11 flex-none items-center justify-center rounded-full border-2 border-tinta-900 bg-white text-tinta-900 shadow-[3px_3px_0_#f6ecd8] transition-transform duration-120 active:translate-y-[2px] active:shadow-none focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2"
+              >
+                <IconFeedback />
+              </button>
+            )}
+          </div>
+        </header>
+
+        <main className="mt-3.5 lg:mt-6">
           {error && (
             <div className="mb-4 rounded-2xl border-2 border-amarillo-300 bg-amarillo-100 p-4">
               <p className="text-sm font-bold font-sans text-amarillo-700">{error}</p>
@@ -684,13 +711,13 @@ function App({ household }: { household: Household }) {
                   </p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     <button
-                      onClick={() => setView('family')}
+                      onClick={() => goTo('family')}
                       className="rounded-full bg-tinta-900 px-4 py-1.5 text-[13px] font-extrabold text-crema-100 transition-colors duration-120 hover:bg-tinta-700 focus:outline-none focus:ring-2 focus:ring-tinta-900 focus:ring-offset-2"
                     >
                       Cambiar reglas
                     </button>
                     <button
-                      onClick={() => setView('catalog')}
+                      onClick={() => goTo('catalog')}
                       className="rounded-full border-2 border-tinta-900 px-4 py-1.5 text-[13px] font-extrabold text-tinta-900 transition-colors duration-120 hover:bg-amarillo-300 focus:outline-none focus:ring-2 focus:ring-tinta-900 focus:ring-offset-2"
                     >
                       Añadir platos
@@ -792,7 +819,7 @@ function App({ household }: { household: Household }) {
                       <div className="mt-4 text-left">
                         <CatalogChecklist dishIdeas={dishIdeas} rules={rules} />
                       </div>
-                      <button onClick={() => setView('catalog')} className="btn-primary mt-4 w-full">
+                      <button onClick={() => goTo('catalog')} className="btn-primary mt-4 w-full">
                         Añadir platos
                       </button>
                       <button onClick={handleSeedCatalog} className="btn-secondary mt-2 w-full">
@@ -807,7 +834,16 @@ function App({ household }: { household: Household }) {
         </main>
       </div>
 
-      {session?.user && <FeedbackButton householdId={household.id} userId={session.user.id} />}
+      <BottomNav active={view} onNavigate={goTo} />
+
+      {feedbackOpen && session?.user && (
+        <FeedbackSheet
+          screen={FEEDBACK_SCREEN[view]}
+          householdId={household.id}
+          userId={session.user.id}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
     </div>
   )
 }

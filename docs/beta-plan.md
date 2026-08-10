@@ -25,10 +25,12 @@ sin salida.
 | M4 — poda del catálogo en el onboarding | **En producción** (PR #11), resuelto por el onboarding v2 |
 | M5 — semana anterior y siguiente | **En producción** (PR #14, ago 2026) |
 | M10 — semana de lunes a domingo | **En producción** (PR #14, ago 2026) |
-| M6, M9 | Pendientes |
+| M9 — feedback en la cabecera | **Hecho, sin mergear** (ago 2026) |
+| M6 — navegación de tres destinos | **Hecho, sin mergear** (ago 2026); queda la edición tocando el día |
 
-Siguiente bloque de trabajo: **M6 y M9**, que siguen esperando specs de Claude Design
-(`docs/brief-claude-design.md`). M6 arrastra además el override manual de M2b.
+Siguiente bloque de trabajo: la mitad de M6 que toca la tarjeta del día —editar
+tocándola y el override manual de M2b—, que sigue esperando spec de Claude Design
+(`docs/brief-claude-design.md`).
 
 > **Aviso operativo tras M8.** Las plantillas de correo de producción ya **no**
 > contienen `{{ .ConfirmationURL }}`: solo mandan el código. Eso significa que
@@ -458,6 +460,20 @@ Tamaño: M. Depende de: nada.
 
 ### M6 — Editar tocando el día, y navegación de tres destinos
 
+> **La navegación está hecha** (ago 2026, sin mergear), siguiendo
+> `specs/navigation.md`: barra inferior fija de tres destinos en móvil
+> (`src/components/BottomNav.tsx`), las mismas tres pestañas en la cabecera en
+> escritorio, y el logotipo ya no navega. **La edición tocando el día sigue
+> pendiente**, y con ella el override manual de M2b.
+>
+> Dos decisiones que se tomaron al implementarlo y que la spec no cubría:
+>
+> - **La cabecera ya no se esconde en modo edición.** Antes desaparecía entera; con
+>   la navegación viviendo ahí, esconderla dejaba al usuario sin salida y sin botón
+>   de feedback. Ahora convive con el banner oscuro de "Estás editando la semana".
+> - **Cambiar de destino no sale del modo edición**: se vuelve a Semana y sigue
+>   donde estaba.
+
 Las dos usuarias intentaron pinchar en el día para editarlo. Y el logotipo como botón
 de vuelta (punto 2 del backlog del rediseño) ya falló en las pruebas de Laura; con
 desconocidos es soporte garantizado. `design-tokens.md` §6 ya reserva un z-index para
@@ -527,11 +543,27 @@ nombre inexacto; se mantiene para no romper la continuidad de la serie en Amplit
 
 Tamaño: S. Depende de: nada.
 
-### M9 — El botón de feedback tapa el de editar en móvil
+### M9 — El botón de feedback tapa el de editar en móvil ✅ hecho, sin mergear
 
-Se solapan y resulta incómodo. Círculo expandible o colocación vertical.
+Se solapaban y resultaba incómodo. La solución de diseño
+(`specs/feedback-button.md`) no es ni círculo expandible ni colocación vertical:
+**el feedback se va de la esquina flotante a la cabecera**, un círculo de 44 px con
+icono de bocadillo que viaja con la app en las tres pantallas. Al no flotar, no
+solapa nada. La hoja (`src/components/FeedbackSheet.tsx`) añade tipo opcional
+(`bug|idea|otro`), mínimo de 4 caracteres, acuse de recibo sin cierre automático y un
+límite de un envío cada 10 segundos.
 
-Tamaño: S. Depende de: diseño (ver abajo).
+> **Lleva migración, y hay que ejecutarla antes de mergear.**
+> `20260810000000_feedback_context_fields.sql` añade `type`, `screen` y `app_version`
+> a `feedback`, que hasta ahora sólo tenía un `context` de texto libre. Las tres
+> columnas son nullable, así que la migración es segura de ejecutar con la app
+> antigua todavía en producción: dev primero, comprobar, luego producción.
+>
+> `app_version` se sella en el build (`vite.config.ts`): versión de `package.json`
+> más el commit que despliega Vercel, porque la versión sola lleva en `1.0.0` desde
+> el primer día y no distingue dos despliegues.
+
+Tamaño: S. Depende de: diseño (recibido, ago 2026).
 
 ### M10 — Semana de lunes a domingo ✅ en producción
 
@@ -593,7 +625,8 @@ Tamaño: S. Depende de: M5 (conviene, no obliga).
 M1 ──> M2 ──> M2b     ✅ en producción
 M5 ──> M10            ✅ en producción
 M7, M8                ✅ en producción
-M6, M9                (bloqueados por diseño)
+M9, M6 (navegación)   hechos, sin mergear
+M6 (tocar el día)     (bloqueado por diseño)
 ```
 
 M5 fue antes que M10 por el argumento de calendario, y salió bien: mientras la semana
@@ -601,7 +634,7 @@ seguía empezando en sábado, el historial real permitía probar la vista de sem
 anterior con datos de verdad. Después de M10 esa vista queda vacía en los hogares
 antiguos y ya no se puede verificar sin sembrar filas a mano.
 
-Sólo quedan M6 y M9, los dos esperando diseño.
+Sólo queda la mitad de M6 que toca la tarjeta del día, esperando diseño.
 
 ---
 
@@ -618,12 +651,14 @@ Sólo quedan M6 y M9, los dos esperando diseño.
   él, pero `redeem_invite_and_create_household` lo exige para crear un hogar. Sin esto,
   el onboarding rediseñado no puede crear hogares. Ya estaba señalado como pregunta
   abierta de la Fase 6.
-- **M6**: edición por tap en el día y navegación explícita de tres destinos
-  (Semana / Platos / Familia). **Incluir en el encargo el override manual de M2b**:
-  la acción explícita "Quiero primero y segundo" (y su inversa para la cena)
-  necesita un sitio en la tarjeta del día o en su sheet, y hay que decidir si el
-  primero lo elige el usuario o lo sortea la app.
-- **M9**: propuesta para el botón de feedback en móvil.
+- **M6, la mitad que falta**: edición por tap en el día. La navegación de tres
+  destinos ya llegó y está implementada (`specs/navigation.md`). **Incluir en el
+  encargo el override manual de M2b**: la acción explícita "Quiero primero y segundo"
+  (y su inversa para la cena) necesita un sitio en la tarjeta del día o en su sheet, y
+  hay que decidir si el primero lo elige el usuario o lo sortea la app.
+
+Recibido y ya implementado: **M9** (`specs/feedback-button.md`) y la navegación de M6
+(`specs/navigation.md`).
 
 No hace falta pedir: **"Ajustes de la casa"** ya está diseñado en `familia.md` §4; se
 omitió en la Fase 3 porque dependía de que existieran las reglas.
