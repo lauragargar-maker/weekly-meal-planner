@@ -553,11 +553,21 @@ solapa nada. La hoja (`src/components/FeedbackSheet.tsx`) añade tipo opcional
 (`bug|idea|otro`), mínimo de 4 caracteres, acuse de recibo sin cierre automático y un
 límite de un envío cada 10 segundos.
 
-> **Lleva migración, y hay que ejecutarla antes de mergear.**
-> `20260810000000_feedback_context_fields.sql` añade `type`, `screen` y `app_version`
-> a `feedback`, que hasta ahora sólo tenía un `context` de texto libre. Las tres
-> columnas son nullable, así que la migración es segura de ejecutar con la app
-> antigua todavía en producción: dev primero, comprobar, luego producción.
+> **Lleva dos migraciones, y una va antes del merge y la otra después.** Es la
+> primera vez que pasa en este proyecto, así que conviene no leerlo en diagonal.
+>
+> 1. `20260810000000_feedback_context_fields.sql` añade `type`, `screen` y
+>    `app_version`. Sólo añade columnas nullable, así que es segura con la app
+>    antigua todavía en producción: **antes de mergear**, dev primero.
+> 2. `20260810010000_feedback_drop_context.sql` borra `context`. **Después de
+>    mergear y comprobar que el feedback se envía.** La app que hay hoy en
+>    producción escribe esa columna en cada `insert`, así que quitarla antes deja
+>    a todo el mundo sin poder mandar feedback hasta que el despliegue aterrice.
+>
+> `context` se rellenaba con `window.location.pathname`, y la app **no tiene
+> router**: las vistas son estado de React servido desde la raíz, así que todas
+> las filas decían `/`. Estaba vacía en dev y en producción; de ahí que se pueda
+> borrar en vez de migrarla a `screen`.
 >
 > `app_version` se sella en el build (`vite.config.ts`): versión de `package.json`
 > más el commit que despliega Vercel, porque la versión sola lleva en `1.0.0` desde
