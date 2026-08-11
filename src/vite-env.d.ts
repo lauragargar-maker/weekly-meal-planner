@@ -9,6 +9,9 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
+/** Version + commit stamped at build time; see the `define` in vite.config.ts. */
+declare const __APP_VERSION__: string
+
 
 
 
