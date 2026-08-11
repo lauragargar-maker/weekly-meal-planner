@@ -25,12 +25,12 @@ sin salida.
 | M4 — poda del catálogo en el onboarding | **En producción** (PR #11), resuelto por el onboarding v2 |
 | M5 — semana anterior y siguiente | **En producción** (PR #14, ago 2026) |
 | M10 — semana de lunes a domingo | **En producción** (PR #14, ago 2026) |
-| M9 — feedback en la cabecera | **Hecho, sin mergear** (ago 2026) |
-| M6 — navegación de tres destinos | **Hecho, sin mergear** (ago 2026); queda la edición tocando el día |
+| M9 — feedback en la cabecera | **En producción** (PR #16, ago 2026) |
+| M6 — navegación de tres destinos | **En producción** (PR #16, ago 2026); queda la edición tocando el día |
 
 Siguiente bloque de trabajo: la mitad de M6 que toca la tarjeta del día —editar
 tocándola y el override manual de M2b—, que sigue esperando spec de Claude Design
-(`docs/brief-claude-design.md`).
+(`docs/brief-claude-design.md`). **Es lo único que queda del plan de beta.**
 
 > **Aviso operativo tras M8.** Las plantillas de correo de producción ya **no**
 > contienen `{{ .ConfirmationURL }}`: solo mandan el código. Eso significa que
@@ -48,6 +48,14 @@ workflow de `.github/workflows/` es el cron de menús, pausado.
 De ahí la regla que salió de M1/M2: **una migración de la que dependa el frontend hay
 que ejecutarla antes de mergear**, y primero en dev, que es un proyecto de Supabase
 distinto (ver `supabase/migrations/README.md`).
+
+**Matiz que añadió M9, y que la regla anterior no cubría: depende de en qué dirección
+va la dependencia.** Una migración que **añade** algo que el frontend nuevo necesita va
+*antes* del merge. Una que **quita** algo que el frontend viejo todavía escribe va
+*después*, cuando el despliegue ya ha aterrizado — si no, la app que hay en producción
+empieza a fallar en el momento en que se ejecuta el SQL. M9 llevó las dos, en ese
+orden, y salió limpio. La forma rápida de decidirlo: *¿qué versión de la app rompo si
+lanzo esto ahora mismo?*
 
 Con M1/M2 el orden importaba en una dirección concreta: la app nueva pide la columna
 `rules` al cargar el hogar, así que desplegarla antes de crear la columna habría roto el
@@ -458,9 +466,9 @@ caro M10.
 
 Tamaño: M. Depende de: nada.
 
-### M6 — Editar tocando el día, y navegación de tres destinos
+### M6 — Editar tocando el día, y navegación de tres destinos ⏳ media
 
-> **La navegación está hecha** (ago 2026, sin mergear), siguiendo
+> **La navegación está en producción** (PR #16, ago 2026), siguiendo
 > `specs/navigation.md`: barra inferior fija de tres destinos en móvil
 > (`src/components/BottomNav.tsx`), las mismas tres pestañas en la cabecera en
 > escritorio, y el logotipo ya no navega. **La edición tocando el día sigue
@@ -543,7 +551,7 @@ nombre inexacto; se mantiene para no romper la continuidad de la serie en Amplit
 
 Tamaño: S. Depende de: nada.
 
-### M9 — El botón de feedback tapa el de editar en móvil ✅ hecho, sin mergear
+### M9 — El botón de feedback tapa el de editar en móvil ✅ en producción
 
 Se solapaban y resultaba incómodo. La solución de diseño
 (`specs/feedback-button.md`) no es ni círculo expandible ni colocación vertical:
@@ -553,21 +561,22 @@ solapa nada. La hoja (`src/components/FeedbackSheet.tsx`) añade tipo opcional
 (`bug|idea|otro`), mínimo de 4 caracteres, acuse de recibo sin cierre automático y un
 límite de un envío cada 10 segundos.
 
-> **Lleva dos migraciones, y una va antes del merge y la otra después.** Es la
-> primera vez que pasa en este proyecto, así que conviene no leerlo en diagonal.
+> **Llevó dos migraciones, una a cada lado del merge**, la primera vez que pasa en
+> este proyecto. Quedó anotado arriba, en "Cómo se despliega", porque la regla vale
+> para lo que venga.
 >
 > 1. `20260810000000_feedback_context_fields.sql` añade `type`, `screen` y
->    `app_version`. Sólo añade columnas nullable, así que es segura con la app
->    antigua todavía en producción: **antes de mergear**, dev primero.
+>    `app_version`. Sólo columnas nullable, así que se ejecutó **antes de mergear**,
+>    dev primero.
 > 2. `20260810010000_feedback_drop_context.sql` borra `context`. **Después de
->    mergear y comprobar que el feedback se envía.** La app que hay hoy en
->    producción escribe esa columna en cada `insert`, así que quitarla antes deja
->    a todo el mundo sin poder mandar feedback hasta que el despliegue aterrice.
+>    mergear** y de comprobar que el feedback se enviaba. La app que había en
+>    producción escribía esa columna en cada `insert`: quitarla antes habría dejado
+>    a todo el mundo sin poder mandar feedback hasta que aterrizara el despliegue.
 >
 > `context` se rellenaba con `window.location.pathname`, y la app **no tiene
 > router**: las vistas son estado de React servido desde la raíz, así que todas
-> las filas decían `/`. Estaba vacía en dev y en producción; de ahí que se pueda
-> borrar en vez de migrarla a `screen`.
+> las filas decían `/`. Estaba vacía en dev y en producción, de ahí que se borrara
+> en vez de migrarla a `screen`.
 >
 > `app_version` se sella en el build (`vite.config.ts`): versión de `package.json`
 > más el commit que despliega Vercel, porque la versión sola lleva en `1.0.0` desde
@@ -635,7 +644,7 @@ Tamaño: S. Depende de: M5 (conviene, no obliga).
 M1 ──> M2 ──> M2b     ✅ en producción
 M5 ──> M10            ✅ en producción
 M7, M8                ✅ en producción
-M9, M6 (navegación)   hechos, sin mergear
+M9, M6 (navegación)   ✅ en producción
 M6 (tocar el día)     (bloqueado por diseño)
 ```
 
@@ -662,12 +671,17 @@ Sólo queda la mitad de M6 que toca la tarjeta del día, esperando diseño.
   el onboarding rediseñado no puede crear hogares. Ya estaba señalado como pregunta
   abierta de la Fase 6.
 - **M6, la mitad que falta**: edición por tap en el día. La navegación de tres
-  destinos ya llegó y está implementada (`specs/navigation.md`). **Incluir en el
+  destinos ya llegó y está en producción (`specs/navigation.md`). **Incluir en el
   encargo el override manual de M2b**: la acción explícita "Quiero primero y segundo"
   (y su inversa para la cena) necesita un sitio en la tarjeta del día o en su sheet, y
   hay que decidir si el primero lo elige el usuario o lo sortea la app.
 
-Recibido y ya implementado: **M9** (`specs/feedback-button.md`) y la navegación de M6
+  Al pedirlo, dos cosas que ya no son hipótesis y condicionan el diseño: la tarjeta
+  del día convive ahora con **una barra de navegación fija abajo** (60 px + safe
+  area), así que nada de esa pantalla puede apoyarse en la esquina inferior; y el
+  modo edición **ya no oculta la cabecera**, que lleva las pestañas y el feedback.
+
+Recibido y ya en producción: **M9** (`specs/feedback-button.md`) y la navegación de M6
 (`specs/navigation.md`).
 
 No hace falta pedir: **"Ajustes de la casa"** ya está diseñado en `familia.md` §4; se
