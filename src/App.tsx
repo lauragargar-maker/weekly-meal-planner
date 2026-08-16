@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { useAuth } from './lib/auth-context'
-import { WeeklyMenu, DishIdea, NewDishIdea, Household } from './types'
+import { WeeklyMenu, DishIdea, MenuItem, NewDishIdea, Household } from './types'
 import MenuAgendaView from './components/MenuAgendaView'
 import CatalogView from './components/CatalogView'
 import FamilyView from './components/FamilyView'
@@ -14,6 +14,13 @@ import { IconFeedback } from './components/icons'
 import { generateWeeklyMenu } from './utils/menuGenerator'
 import { isCatalogReady } from './utils/catalogCheck'
 import { parseRules } from './lib/householdRules'
+import {
+  CourseSlot,
+  MealType,
+  addFirstCourse,
+  removeFirstCourse,
+  replaceCourse,
+} from './lib/dayFormat'
 import { describeDegradedMenu } from './lib/degradedMenu'
 import { STARTER_CATALOG } from './data/starterCatalog'
 import { identifyHousehold, trackEvent } from './lib/analytics'
@@ -63,7 +70,6 @@ function App({ household }: { household: Household }) {
   const [dishIdeas, setDishIdeas] = useState<DishIdea[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isEditing, setIsEditing] = useState(false)
   const [view, setView] = useState<Destination>('agenda')
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   // Tagged with the week it was produced for, so the warning does not follow the
@@ -463,35 +469,27 @@ function App({ household }: { household: Household }) {
     }
   }, [weekOffset, menusByWeek, dishIdeas, generateNewMenu, householdId, storeMenu])
 
-  const updateMenuItem = useCallback(async (
+  /**
+   * Rewrites one meal of one day and saves the week.
+   *
+   * Every edit goes through here, so the optimistic update and the rollback are
+   * written once. The transform itself lives in `lib/dayFormat.ts`: what belongs
+   * here is the writing, not the rules about which slot holds what.
+   */
+  const writeMeal = useCallback(async (
     dayISO: string,
-    mealType: 'lunch' | 'dinner',
-    dishSlot: 'starter' | 'main' | 'single',
-    newDishName: string,
-    selectedCategory: 'starter' | 'main' | 'single'
+    mealType: MealType,
+    transform: (item: MenuItem) => MenuItem,
   ) => {
     const activeMenu = menusByWeek[displayedWeekKey]
     if (!activeMenu || readOnly) return
 
-    const updatedItems = activeMenu.menu_items.map((item) => {
-      if (item.day !== dayISO || item.meal_type !== mealType) return item
-
-      if (dishSlot === 'main' && selectedCategory === 'single') {
-        return { ...item, single: newDishName, starter: undefined, main: undefined }
-      }
-
-      if (dishSlot === 'single' && selectedCategory === 'main') {
-        const compatibleStarters = dishIdeas.filter(
-          (d) => d.category === 'starter' && (d.meal_type === 'both' || d.meal_type === mealType)
-        )
-        const randomStarter = compatibleStarters.length > 0
-          ? compatibleStarters[Math.floor(Math.random() * compatibleStarters.length)].name
-          : undefined
-        return { ...item, main: newDishName, starter: randomStarter, single: undefined }
-      }
-
-      return { ...item, [dishSlot]: newDishName }
-    })
+    const matches = (item: MenuItem) => item.day === dayISO && item.meal_type === mealType
+    // A degraded week can be missing a meal outright. Editing it should add the
+    // row rather than quietly do nothing.
+    const updatedItems = activeMenu.menu_items.some(matches)
+      ? activeMenu.menu_items.map(item => (matches(item) ? transform(item) : item))
+      : [...activeMenu.menu_items, transform({ day: dayISO, meal_type: mealType })]
 
     storeMenu({ ...activeMenu, menu_items: updatedItems })
 
@@ -503,16 +501,37 @@ function App({ household }: { household: Household }) {
           updated_at: new Date().toISOString()
         })
         .eq('id', activeMenu.id)
-      trackEvent('menu_item_edited', {
-        meal_type: mealType,
-        dish_slot: dishSlot,
-        selected_category: selectedCategory,
-      })
     } catch (err) {
       console.error('Error updating menu item:', err)
       storeMenu(activeMenu)
     }
-  }, [menusByWeek, displayedWeekKey, readOnly, dishIdeas, storeMenu])
+  }, [menusByWeek, displayedWeekKey, readOnly, storeMenu])
+
+  const handleReplaceCourse = useCallback((
+    dayISO: string,
+    mealType: MealType,
+    slot: CourseSlot,
+    dishName: string,
+  ) => {
+    writeMeal(dayISO, mealType, item => replaceCourse(item, slot, dishName))
+    // `selected_category` is gone from this event: choosing a dish no longer
+    // restructures the meal, so the category of what was chosen decides nothing.
+    trackEvent('menu_item_edited', { meal_type: mealType, dish_slot: slot })
+  }, [writeMeal])
+
+  const handleAddFirstCourse = useCallback((
+    dayISO: string,
+    mealType: MealType,
+    dishName: string,
+  ) => {
+    writeMeal(dayISO, mealType, item => addFirstCourse(item, dishName))
+    trackEvent('day_format_changed', { meal_type: mealType, action: 'add' })
+  }, [writeMeal])
+
+  const handleRemoveFirstCourse = useCallback((dayISO: string, mealType: MealType) => {
+    writeMeal(dayISO, mealType, removeFirstCourse)
+    trackEvent('day_format_changed', { meal_type: mealType, action: 'remove' })
+  }, [writeMeal])
 
   const handleAddNewDish = useCallback(async (dishData: NewDishIdea) => {
     try {
@@ -665,11 +684,8 @@ function App({ household }: { household: Household }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {view === 'agenda' && displayedMenu && !readOnly && !isEditing && (
-              <button onClick={() => setIsEditing(true)} className="btn-dark hidden lg:inline-flex">
-                ✎ Editar la semana
-              </button>
-            )}
+            {/* No "Editar la semana": there is one way in and it is the day card
+                itself (`specs/edit-day.md` §1). */}
             <span className="hidden text-[13px] font-extrabold text-tinta-500 md:inline">
               {household.name}
             </span>
@@ -692,7 +708,7 @@ function App({ household }: { household: Household }) {
             </div>
           )}
 
-          {degraded?.weekStart === displayedWeekKey && view === 'agenda' && !isEditing && (
+          {degraded?.weekStart === displayedWeekKey && view === 'agenda' && (
             <div
               className="mb-4 rounded-2xl border-2 border-amarillo-500 bg-amarillo-100 p-4"
               role="status"
@@ -744,14 +760,12 @@ function App({ household }: { household: Household }) {
             <>
               {/* Outside the agenda component so that a week with no menu saved
                   is still navigable — otherwise an empty past week traps you. */}
-              {!isEditing && (
-                <WeekNav
-                  weekOffset={weekOffset}
-                  canGoBack={weekOffset > WEEK_RANGE.min}
-                  canGoForward={weekOffset < WEEK_RANGE.max}
-                  onNavigate={handleWeekNav}
-                />
-              )}
+              <WeekNav
+                weekOffset={weekOffset}
+                canGoBack={weekOffset > WEEK_RANGE.min}
+                canGoForward={weekOffset < WEEK_RANGE.max}
+                onNavigate={handleWeekNav}
+              />
 
               {loadingWeek ? (
                 <div className="card mt-4 py-12 text-center" role="status" aria-live="polite">
@@ -765,11 +779,13 @@ function App({ household }: { household: Household }) {
                 <MenuAgendaView
                   menu={displayedMenu}
                   dishIdeas={dishIdeas}
-                  onUpdateDish={updateMenuItem}
-                  onAddNewDish={handleAddNewDish}
+                  rules={rules}
                   readOnly={readOnly}
-                  isEditing={isEditing}
-                  onToggleEditing={setIsEditing}
+                  onReplaceCourse={handleReplaceCourse}
+                  onAddFirstCourse={handleAddFirstCourse}
+                  onRemoveFirstCourse={handleRemoveFirstCourse}
+                  onAddNewDish={handleAddNewDish}
+                  onOpenDay={(_day, surface) => trackEvent('day_editor_opened', { surface })}
                 />
               ) : readOnly ? (
                 <div className="card mx-auto mt-4 max-w-md text-center">
