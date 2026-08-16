@@ -150,6 +150,11 @@ Decisiones tomadas al implementar:
 
 ## Fase 4 — Edición de platos **[funcionalidad nueva]**
 
+> **`DishEditor.tsx` ya no existe** (M6, ago 2026). Su hoja vive ahora en
+> `DishPicker.tsx`, dentro del contenedor de `DayEditor.tsx`, y el disparador es la
+> tarjeta del día en vez de la fila de plato. `AddDishModal` sigue igual, con sus dos
+> `variant`. Lo de abajo describe cómo se construyó la fase, no el código de hoy.
+
 - `DishEditor`: el `<select>` nativo pasa a bottom sheet (móvil) / popover (escritorio) con
   buscador y chips de filtro. **Las reglas de `compatibleDishes` no se tocan** (día de finde,
   `meal_type`, no-pasta en cena, compatibilidad de `slot`).
@@ -408,13 +413,11 @@ Comportamiento preexistente, no introducido por el rediseño. Decidir entre avis
 contexto, o impedirlo. Toca reglas de negocio.
 
 ### 5. No se puede pasar de plato único a primero + segundo de forma explícita
-En modo edición, un día con plato único no ofrece ninguna acción para partirlo en dos platos.
-La conversión **sí existe** en `updateMenuItem` (`App.tsx`): elegir un plato de categoría
-`main` desde un hueco `single` lo convierte y añade un primero **al azar**. Pero está escondida
-dentro de la elección de plato y el usuario no elige el primero.
-
-Necesita una acción explícita en el sheet o en la tarjeta del día ("Quiero primero y segundo"),
-y decidir si el primero se elige o se sigue sorteando. Toca reglas de negocio.
+✅ **Resuelto en M6** (ago 2026, `specs/edit-day.md` §3). La hoja del día lleva
+`＋ Primer plato` / `− Quitar el primero` en la cabecera de cada comida, y el primero **lo
+elige el usuario**: el control abre la selección en el acto y, si se cancela, no se añade
+nada. La conversión escondida de `updateMenuItem` —que añadía un primero al azar— está
+borrada. Ver `docs/beta-plan.md`, M2b punto 3.
 
 ## Verificación
 

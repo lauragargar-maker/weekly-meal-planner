@@ -26,11 +26,12 @@ sin salida.
 | M5 — semana anterior y siguiente | **En producción** (PR #14, ago 2026) |
 | M10 — semana de lunes a domingo | **En producción** (PR #14, ago 2026) |
 | M9 — feedback en la cabecera | **En producción** (PR #16, ago 2026) |
-| M6 — navegación de tres destinos | **En producción** (PR #16, ago 2026); queda la edición tocando el día |
+| M6 — navegación de tres destinos | **En producción** (PR #16, ago 2026) |
+| M6 — editar tocando el día | **Listo para mergear** (ago 2026), con el override manual de M2b |
 
-Siguiente bloque de trabajo: la mitad de M6 que toca la tarjeta del día —editar
-tocándola y el override manual de M2b—, que sigue esperando spec de Claude Design
-(`docs/brief-claude-design.md`). **Es lo único que queda del plan de beta.**
+**Los diez must-have están hechos.** Con M6 completo se cierra también el punto 3 de
+M2b, el override manual "hoy quiero dos platos", que se había aplazado justo hasta
+aquí. No queda nada del plan de beta por construir.
 
 > **Aviso operativo tras M8.** Las plantillas de correo de producción ya **no**
 > contienen `{{ .ConfirmationURL }}`: solo mandan el código. Eso significa que
@@ -358,23 +359,20 @@ Tamaño: L. Depende de: M1.
    (pasar de plato único a primero + segundo) y la petición de Erika de elegir el
    segundo plato de la comida.
 
-   > **Aplazado a M6** (decidido ago 2026). Es lo único de M2b que queda sin hacer.
-   > Vive en la misma superficie que M6 —la tarjeta del día y su modo de edición—
-   > así que resolverlo antes obligaría a rehacerlo cuando M6 cambie esa tarjeta.
+   > **Hecho con M6** (ago 2026), que es donde se aplazó a propósito por vivir en la
+   > misma tarjeta. Cómo quedaron las tres cosas que estaban abiertas:
    >
-   > Al retomarlo, tres cosas que M2 ha cambiado desde que se escribió esto:
-   >
-   > - **La conversión ya existe, escondida y a medias.** En `updateMenuItem`
-   >   (`App.tsx`), elegir un plato de categoría `main` desde un hueco `single` lo
-   >   convierte y **añade un primero al azar**. Nadie pidió convertir nada y el
-   >   primero no se elige. No es sólo que falte la función: hay un comportamiento
-   >   oculto que sorprende y que habría que quitar o hacer explícito.
-   > - **Ahora es simétrico.** Con `dinnerCourses` configurable, el override va en
-   >   las dos direcciones y en las dos comidas: partir una comida en dos, juntar
-   >   una cena de dos en una.
-   > - **La decisión de producto sigue abierta**: al partir un día, ¿el primero lo
-   >   elige el usuario o lo sigue sorteando la app? Sortearlo es lo que hace hoy y
-   >   es justo lo que molesta; elegirlo son dos interacciones en vez de una.
+   > - **La conversión escondida ya no existe.** En `updateMenuItem` (`App.tsx`),
+   >   elegir un plato de categoría `main` desde un hueco `single` convertía la comida
+   >   y **añadía un primero al azar**. Eso se ha borrado: elegir un plato cambia el
+   >   plato y nada más. El formato se cambia con su propio control.
+   > - **Es simétrico**, como se preveía: `＋ Primer plato` / `− Quitar el primero` en
+   >   la cabecera de cada comida, en la comida y en la cena, y sólo aparece uno de
+   >   los dos.
+   > - **La decisión abierta la cerró el diseño: lo elige el usuario.** Tocar
+   >   `＋ Primer plato` abre la selección en el acto, y si se cancela **no se añade
+   >   nada** — el formato no se guarda hasta que hay plato, en una sola escritura.
+   >   Así no existe el estado "falta el primero" que habría que dibujar y explicar.
 4. **El fallback tiene que dejar de ser silencioso.** Cuando `generateWeeklyMenu`
    agota sus 200 intentos cae a `generateBasicMenu` (`menuGenerator.ts:561`), que
    ignora casi todas las reglas, y solo deja un `console.warn`. El usuario recibe un
@@ -466,21 +464,55 @@ caro M10.
 
 Tamaño: M. Depende de: nada.
 
-### M6 — Editar tocando el día, y navegación de tres destinos ⏳ media
+### M6 — Editar tocando el día, y navegación de tres destinos ✅ completo
 
 > **La navegación está en producción** (PR #16, ago 2026), siguiendo
 > `specs/navigation.md`: barra inferior fija de tres destinos en móvil
 > (`src/components/BottomNav.tsx`), las mismas tres pestañas en la cabecera en
-> escritorio, y el logotipo ya no navega. **La edición tocando el día sigue
-> pendiente**, y con ella el override manual de M2b.
+> escritorio, y el logotipo ya no navega.
 >
 > Dos decisiones que se tomaron al implementarlo y que la spec no cubría:
 >
 > - **La cabecera ya no se esconde en modo edición.** Antes desaparecía entera; con
 >   la navegación viviendo ahí, esconderla dejaba al usuario sin salida y sin botón
->   de feedback. Ahora convive con el banner oscuro de "Estás editando la semana".
+>   de feedback.
 > - **Cambiar de destino no sale del modo edición**: se vuelve a Semana y sigue
->   donde estaba.
+>   donde estaba. *(Sin efecto desde que el modo edición de semana desapareció.)*
+
+> **La edición tocando el día está construida** (ago 2026), siguiendo
+> `specs/edit-day.md` completa. **El modo de edición de toda la semana desaparece**:
+> el banner "Estás editando", el CTA "✎ Editar la semana" de la cabecera y el de
+> móvil, y `DishEditor.tsx` entero. Ahora hay un lápiz por día, la tarjeta entera es
+> el botón, y el número de platos se decide día a día.
+>
+> Lo que conviene no reconstruir:
+>
+> - **Sin migración.** `MenuItem` ya distinguía `single` de `starter`+`main` por día y
+>   comida, así que el override de M2b sale del modelo que ya había.
+> - **Al añadir un primero, el plato que había pasa de `single` a `main`.** Es
+>   obligatorio: las reglas leen el plato principal como `single ?? main`, y dejarlo en
+>   `single` con un primero al lado lo escondería de todas las reglas de ingrediente.
+>   **Quitar no es el inverso exacto**: lo que queda se conserva en `main`. Ambos
+>   campos significan lo mismo para las reglas y para la hoja del día, y reescribirlo
+>   sólo añadiría una forma de equivocarse. Está en `src/lib/dayFormat.ts`, con tests.
+> - **Las reglas avisan, no bloquean.** El viejo editor escondía toda la pasta en la
+>   cena; ahora el plato sigue en la lista con una nota ámbar. Sólo avisan las reglas
+>   de día (exclusión de cena, no repetir eje, verdura en la cena): las semanales
+>   necesitarían el resto de la semana para decir algo cierto.
+> - **Dos contenedores, uno solo montado**: hoja de dos pasos por debajo de 1024 px,
+>   panel lateral no modal por encima (`src/lib/useMediaQuery.ts`). Pintar los dos y
+>   esconder uno con CSS habría dado dos diálogos y dos copias del estado del paso.
+> - **Bug de foco que costó encontrar**: los componentes de tarjeta estaban definidos
+>   *dentro* del render, así que React recreaba el nodo en cada pintado y el foco no
+>   podía volver a él. Además, en escritorio cerrar cambia el layout de la semana, con
+>   lo que la tarjeta de origen tampoco sobrevive: el foco se devuelve **por `data-day`
+>   tras el re-render**, no guardando el nodo.
+> - **Desviación consciente de la spec**: el botón de terminar dice **"Hecho"** en las
+>   dos superficies. La spec pedía "Listo" en el panel de escritorio, y en móvil no
+>   pedía ninguno — pero probándolo en local, cerrar sólo con el ✕ no se entendía.
+> - Analítica: `menu_item_edited` pierde `selected_category` (elegir plato ya no
+>   reestructura la comida) y aparecen `day_editor_opened` (`surface`) y
+>   `day_format_changed` (`meal_type`, `action`).
 
 Las dos usuarias intentaron pinchar en el día para editarlo. Y el logotipo como botón
 de vuelta (punto 2 del backlog del rediseño) ya falló en las pruebas de Laura; con
@@ -645,7 +677,7 @@ M1 ──> M2 ──> M2b     ✅ en producción
 M5 ──> M10            ✅ en producción
 M7, M8                ✅ en producción
 M9, M6 (navegación)   ✅ en producción
-M6 (tocar el día)     (bloqueado por diseño)
+M6 (tocar el día)     ✅ construido, listo para mergear
 ```
 
 M5 fue antes que M10 por el argumento de calendario, y salió bien: mientras la semana
@@ -653,7 +685,7 @@ seguía empezando en sábado, el historial real permitía probar la vista de sem
 anterior con datos de verdad. Después de M10 esa vista queda vacía en los hogares
 antiguos y ya no se puede verificar sin sembrar filas a mano.
 
-Sólo queda la mitad de M6 que toca la tarjeta del día, esperando diseño.
+Con M6 completo, el plan de beta no tiene más trabajo por delante.
 
 ---
 
@@ -670,19 +702,21 @@ Sólo queda la mitad de M6 que toca la tarjeta del día, esperando diseño.
   él, pero `redeem_invite_and_create_household` lo exige para crear un hogar. Sin esto,
   el onboarding rediseñado no puede crear hogares. Ya estaba señalado como pregunta
   abierta de la Fase 6.
-- **M6, la mitad que falta**: edición por tap en el día. La navegación de tres
-  destinos ya llegó y está en producción (`specs/navigation.md`). **Incluir en el
-  encargo el override manual de M2b**: la acción explícita "Quiero primero y segundo"
-  (y su inversa para la cena) necesita un sitio en la tarjeta del día o en su sheet, y
-  hay que decidir si el primero lo elige el usuario o lo sortea la app.
-
-  Al pedirlo, dos cosas que ya no son hipótesis y condicionan el diseño: la tarjeta
-  del día convive ahora con **una barra de navegación fija abajo** (60 px + safe
-  area), así que nada de esa pantalla puede apoyarse en la esquina inferior; y el
-  modo edición **ya no oculta la cabecera**, que lleva las pestañas y el feedback.
-
 Recibido y ya en producción: **M9** (`specs/feedback-button.md`) y la navegación de M6
 (`specs/navigation.md`).
+
+Recibido y construido: **M6, editar tocando el día** (`specs/edit-day.md`, con §0 y las
+capturas de escritorio de la segunda vuelta). Llegó completa y sin huecos que
+inventar; el override manual de M2b entró con ella. Lo que hubo que resolver por
+nuestra cuenta, por si sirve para el próximo encargo:
+
+- La spec **vuelve a dar por existentes los roles** admin/miembro, que no existen. Es
+  la tercera vez; conviene repetirlo en cada brief.
+- **No menciona la semana de sólo lectura** (M5): sin lápiz y sin tarjeta pulsable.
+- Lista **6 ingredientes** en los filtros y nosotros tenemos 8. Mismo criterio que en
+  el paso 3 del onboarding: se muestran los 8, o los platos de huevo y patata sólo se
+  alcanzan por "Todos".
+- El texto del botón de terminar: la spec decía "Listo" y sólo en escritorio.
 
 No hace falta pedir: **"Ajustes de la casa"** ya está diseñado en `familia.md` §4; se
 omitió en la Fase 3 porque dependía de que existieran las reglas.
@@ -710,8 +744,9 @@ omitió en la Fase 3 porque dependía de que existieran las reglas.
 
 ## Verificación
 
-Ya hay tests en el repo: `npm test` (vitest), 68 repartidos entre `menuGenerator`,
-`householdRules`, `degradedMenu` y `weekStart`. Se escribieron para M1/M2 y para M10.
+Ya hay tests en el repo: `npm test` (vitest), 99 repartidos entre `menuGenerator`,
+`householdRules`, `degradedMenu`, `weekStart` y `dayFormat`. Se escribieron para M1/M2,
+para M10 y para M6.
 
 El resto se verifica levantando el dev server (`.claude/launch.json` tiene
 `weeklymenu-preview` para probar el build de producción), en móvil y escritorio, más
@@ -725,6 +760,9 @@ silencioso:
   combinables). Verificar eso generando menús a mano no era viable.
 - **M10**: una fecha de inicio de semana mal calculada no rompe nada, sólo consulta
   la fila equivocada. De ahí `weekStart.test.ts`.
+- **M6**: un plato escrito en el campo equivocado (`single` donde tocaba `main`) se
+  pinta igual de bien y sólo se nota semanas después, como una regla que el generador
+  parece ignorar. De ahí `dayFormat.test.ts`, escrito antes que la interfaz.
 
 Lo que sí necesita ojos es el estado vacío: **para probar la vista de semana anterior
 en dev hace falta un hogar que tenga menús de esa semana**. Un hogar sin fila enseña

@@ -1,22 +1,31 @@
+import { ReactNode, useEffect, useRef, useState } from 'react'
 import { WeeklyMenu, DishIdea, NewDishIdea } from '../types'
 import { formatDayName } from '../utils/menuGenerator'
-import { formatWeekRange } from '../utils/weekStart'
-import DishEditor from './DishEditor'
+import { CourseSlot, MealType, coursesOf } from '../lib/dayFormat'
+import { HouseholdRules } from '../lib/householdRules'
+import { useMediaQuery } from '../lib/useMediaQuery'
+import DayEditor from './DayEditor'
 
 interface MenuAgendaViewProps {
   menu: WeeklyMenu
   dishIdeas: DishIdea[]
-  onUpdateDish: (dayISO: string, mealType: 'lunch' | 'dinner', dishSlot: 'starter' | 'main' | 'single', newDishName: string, selectedCategory: 'starter' | 'main' | 'single') => void
-  onAddNewDish: (dishData: NewDishIdea) => void
+  rules: HouseholdRules
   /** Past weeks are history: shown, never edited. */
   readOnly: boolean
-  isEditing: boolean
-  onToggleEditing: (editing: boolean) => void
+  onReplaceCourse: (dayISO: string, mealType: MealType, slot: CourseSlot, dishName: string) => void
+  onAddFirstCourse: (dayISO: string, mealType: MealType, dishName: string) => void
+  onRemoveFirstCourse: (dayISO: string, mealType: MealType) => void
+  onAddNewDish: (dishData: NewDishIdea) => void
+  /** For analytics: which day was opened, and in which container. */
+  onOpenDay?: (dayISO: string, surface: 'sheet' | 'panel') => void
 }
 
 type MenuItem = WeeklyMenu['menu_items'][0]
 
 const DAY_ABBR = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB']
+
+/** Above this the day opens in a panel beside the week; below it, in a sheet. */
+const DESKTOP_QUERY = '(min-width: 1024px)'
 
 /** Today as a local YYYY-MM-DD string, comparable with the ISO days in menu_items. */
 const todayISO = (): string => {
@@ -29,13 +38,148 @@ const dayNumber = (iso: string): string => String(new Date(iso).getDate())
 const dayAbbr = (iso: string): string => DAY_ABBR[new Date(iso).getDay()]
 
 /** Dish names of a meal, in course order. */
-const dishesOf = (item: MenuItem | null): string[] => {
-  if (!item) return []
-  if (item.single) return [item.single]
-  return [item.starter, item.main].filter((d): d is string => Boolean(d))
+const dishesOf = (item: MenuItem | null): string[] =>
+  coursesOf(item).map(course => course.dish)
+
+/*
+ * These five live at module scope on purpose. Declared inside the component,
+ * each render would create a new component type, and React would throw away the
+ * DOM node and build a new one — which silently breaks returning the focus to
+ * the day card that opened the editor, because by then that node is detached.
+ */
+
+/** Coloured circle with the sun/moon glyph. */
+const MealCircle = ({ mealType, size }: { mealType: MealType; size: number }) => (
+  <span
+    className={`flex flex-none items-center justify-center rounded-full ${
+      mealType === 'lunch' ? 'bg-amarillo-500 text-tinta-900' : 'bg-verde-500 text-white'
+    }`}
+    style={{ width: size, height: size, fontSize: size * (mealType === 'lunch' ? 0.45 : 0.41) }}
+    aria-hidden="true"
+  >
+    {mealType === 'lunch' ? '☀' : '☾'}
+  </span>
+)
+
+/** Circle + COMIDA/CENA label + dish names. Used on prominent cards. */
+const MealBlock = ({ item, mealType, circle, nameClass }: { item: MenuItem | null; mealType: MealType; circle: number; nameClass: string }) => {
+  const dishes = dishesOf(item)
+  if (dishes.length === 0) return null
+  return (
+    <div className="flex items-start gap-2.5">
+      <MealCircle mealType={mealType} size={circle} />
+      <div className="min-w-0">
+        <p className="text-xs font-extrabold tracking-[0.08em] text-tinta-500">
+          {mealType === 'lunch' ? 'COMIDA' : 'CENA'}
+        </p>
+        <div className="flex flex-col gap-1">
+          {dishes.map((dish) => (
+            <p key={dish} className={nameClass}>{dish}</p>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
-export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNewDish, readOnly, isEditing, onToggleEditing }: MenuAgendaViewProps) {
+/** One line per meal, courses joined with "·". Used on secondary cards. */
+const CompactMeals = ({ lunch, dinner }: { lunch: MenuItem | null; dinner: MenuItem | null }) => {
+  const lunchDishes = dishesOf(lunch)
+  const dinnerDishes = dishesOf(dinner)
+  return (
+    <div className="flex min-w-0 flex-col gap-1 text-sm font-bold font-sans leading-[1.3]">
+      {/* The sun and the moon are the only thing telling lunch from dinner here,
+          and they are decorative: now that the card is a button, its contents are
+          read out, so the distinction has to exist in text too. */}
+      {lunchDishes.length > 0 && (
+        <p className="flex gap-2">
+          <span className="flex-none text-amarillo-500" aria-hidden="true">☀</span>
+          <span className="text-tinta-900">
+            <span className="sr-only">Comida: </span>
+            {lunchDishes.join(' · ')}
+          </span>
+        </p>
+      )}
+      {dinnerDishes.length > 0 && (
+        <p className="flex gap-2">
+          <span className="flex-none text-verde-500" aria-hidden="true">☾</span>
+          <span className="text-tinta-500">
+            <span className="sr-only">Cena: </span>
+            {dinnerDishes.join(' · ')}
+          </span>
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The one edit affordance, on every day alike (§1). It is a signal, not the
+ * target: the whole card is the button, which is what the two interviewees
+ * tried to press in the first place.
+ */
+const Pencil = ({ strong }: { strong?: boolean }) => (
+  <span
+    aria-hidden="true"
+    className={`flex h-11 w-11 flex-none items-center justify-center rounded-full bg-crema-100 text-[18px] font-extrabold text-tinta-900 ${
+      strong ? 'border-2 border-tinta-900 shadow-[3px_3px_0_#f0e2c8]' : 'border-2 border-crema-300'
+    }`}
+  >
+    ✎
+  </span>
+)
+
+/**
+ * A day card: a button when the week can be edited, a plain box when it is
+ * history. Past weeks keep the layout and lose the affordance.
+ */
+const DayCard = ({
+  day,
+  className,
+  canEdit,
+  onOpen,
+  children,
+}: {
+  day: string
+  className: string
+  canEdit: boolean
+  onOpen: (day: string) => void
+  children: ReactNode
+}) =>
+  canEdit ? (
+    <button
+      type="button"
+      onClick={() => onOpen(day)}
+      // Closing the editor gives the focus back through this attribute rather
+      // than through the node: on desktop the week swaps layouts as it closes,
+      // so the card that opened it no longer exists by then.
+      data-day={day}
+      aria-label={`Editar el menú del ${formatDayName(day).toLowerCase()} ${dayNumber(day)}`}
+      className={`${className} w-full text-left transition-transform duration-120 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2`}
+    >
+      {children}
+    </button>
+  ) : (
+    <div className={className}>{children}</div>
+  )
+
+export default function MenuAgendaView({
+  menu,
+  dishIdeas,
+  rules,
+  readOnly,
+  onReplaceCourse,
+  onAddFirstCourse,
+  onRemoveFirstCourse,
+  onAddNewDish,
+  onOpenDay,
+}: MenuAgendaViewProps) {
+  const [openDay, setOpenDay] = useState<string | null>(null)
+  // The day whose card should get the focus back, once the week has re-rendered.
+  const [refocusDay, setRefocusDay] = useState<string | null>(null)
+  const isDesktop = useMediaQuery(DESKTOP_QUERY)
+  const rootRef = useRef<HTMLDivElement>(null)
+
   // Group menu items by day
   const itemsByDay = menu.menu_items.reduce((acc, item) => {
     if (!acc[item.day]) {
@@ -69,60 +213,37 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
   // that hasn't. A week wholly in the past is shown at full strength.
   const isPast = (day: string) => Boolean(todayDay) && day < today
 
-  /** Coloured circle with the sun/moon glyph. */
-  const MealCircle = ({ mealType, size }: { mealType: 'lunch' | 'dinner'; size: number }) => (
-    <span
-      className={`flex flex-none items-center justify-center rounded-full ${
-        mealType === 'lunch' ? 'bg-amarillo-500 text-tinta-900' : 'bg-verde-500 text-white'
-      }`}
-      style={{ width: size, height: size, fontSize: size * (mealType === 'lunch' ? 0.45 : 0.41) }}
-      aria-hidden="true"
-    >
-      {mealType === 'lunch' ? '☀' : '☾'}
-    </span>
-  )
+  const canEdit = !readOnly
 
-  /** Circle + COMIDA/CENA label + dish names. Used on prominent cards. */
-  const MealBlock = ({ item, mealType, circle, nameClass }: { item: MenuItem | null; mealType: 'lunch' | 'dinner'; circle: number; nameClass: string }) => {
-    const dishes = dishesOf(item)
-    if (dishes.length === 0) return null
-    return (
-      <div className="flex items-start gap-2.5">
-        <MealCircle mealType={mealType} size={circle} />
-        <div className="min-w-0">
-          <p className="text-xs font-extrabold tracking-[0.08em] text-tinta-500">
-            {mealType === 'lunch' ? 'COMIDA' : 'CENA'}
-          </p>
-          <div className="flex flex-col gap-1">
-            {dishes.map((dish) => (
-              <p key={dish} className={nameClass}>{dish}</p>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
+  // Navigating to another week unmounts nothing, so an open day would survive
+  // into a week it does not belong to.
+  useEffect(() => {
+    setOpenDay(null)
+  }, [menu.week_start])
+
+  /**
+   * §5: the focus comes back to the day card. It has to be found again after
+   * the week has re-rendered — mobile and desktop both keep a card per day in
+   * the DOM, and only one of the two is visible, so the hidden one would
+   * swallow the focus.
+   */
+  useEffect(() => {
+    if (!refocusDay) return
+    const cards = rootRef.current?.querySelectorAll<HTMLElement>(`[data-day="${refocusDay}"]`)
+    cards?.forEach(card => {
+      if (card.offsetParent !== null) card.focus()
+    })
+    setRefocusDay(null)
+  }, [refocusDay])
+
+  const closeEditor = () => {
+    setRefocusDay(openDay)
+    setOpenDay(null)
   }
 
-  /** One line per meal, courses joined with "·". Used on secondary cards. */
-  const CompactMeals = ({ lunch, dinner }: { lunch: MenuItem | null; dinner: MenuItem | null }) => {
-    const lunchDishes = dishesOf(lunch)
-    const dinnerDishes = dishesOf(dinner)
-    return (
-      <div className="flex min-w-0 flex-col gap-1 text-sm font-bold font-sans leading-[1.3]">
-        {lunchDishes.length > 0 && (
-          <p className="flex gap-2">
-            <span className="flex-none text-amarillo-500" aria-hidden="true">☀</span>
-            <span className="text-tinta-900">{lunchDishes.join(' · ')}</span>
-          </p>
-        )}
-        {dinnerDishes.length > 0 && (
-          <p className="flex gap-2">
-            <span className="flex-none text-verde-500" aria-hidden="true">☾</span>
-            <span className="text-tinta-500">{dinnerDishes.join(' · ')}</span>
-          </p>
-        )}
-      </div>
-    )
+  const openEditor = (day: string) => {
+    setOpenDay(day)
+    onOpenDay?.(day, isDesktop ? 'panel' : 'sheet')
   }
 
   const separator = <div className="h-0.5 rounded bg-amarillo-300" />
@@ -141,7 +262,10 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
         >
           {desktop ? 'HOY' : `HOY · ${formatDayName(day)}`}
         </span>
-        <div
+        <DayCard
+          day={day}
+          canEdit={canEdit}
+          onOpen={openEditor}
           className={`h-full border-[3px] border-tinta-900 bg-white ${
             desktop ? 'rounded-[26px] p-6 shadow-[7px_7px_0_#f0e2c8]' : 'rounded-hoy p-[18px] shadow-pop'
           }`}
@@ -151,10 +275,17 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
               {formatDayName(day)} {dayNumber(day)}
             </h3>
           )}
-          <MealBlock item={lunch} mealType="lunch" circle={44} nameClass={nameClass} />
-          <div className={desktop ? 'my-[18px]' : 'my-3.5'}>{separator}</div>
-          <MealBlock item={dinner} mealType="dinner" circle={44} nameClass={nameClass} />
-        </div>
+          {/* The pencil shares the row with the meals rather than sitting in its
+              own line: it is what keeps the card of today short. */}
+          <div className="flex items-center gap-3.5">
+            <div className="min-w-0 flex-1">
+              <MealBlock item={lunch} mealType="lunch" circle={44} nameClass={nameClass} />
+              <div className={desktop ? 'my-[18px]' : 'my-3.5'}>{separator}</div>
+              <MealBlock item={dinner} mealType="dinner" circle={44} nameClass={nameClass} />
+            </div>
+            {canEdit && <Pencil strong />}
+          </div>
+        </DayCard>
       </div>
     )
   }
@@ -163,9 +294,12 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
   const renderCompactRow = (day: string) => {
     const { lunch, dinner } = itemsByDay[day]
     return (
-      <div
+      <DayCard
         key={day}
-        className={`flex gap-3 rounded-[18px] border-2 border-crema-300 bg-white py-3 px-3.5 ${
+        day={day}
+        canEdit={canEdit}
+        onOpen={openEditor}
+        className={`flex items-center gap-3 rounded-[18px] border-2 border-crema-300 bg-white py-3 px-3.5 active:border-[3px] active:border-tinta-900 ${
           isPast(day) ? 'opacity-[0.55]' : ''
         }`}
       >
@@ -173,8 +307,11 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
           <p className="text-xs font-extrabold text-tinta-500">{dayAbbr(day)}</p>
           <p className="text-base font-extrabold text-tinta-500">{dayNumber(day)}</p>
         </div>
-        <CompactMeals lunch={lunch} dinner={dinner} />
-      </div>
+        <div className="min-w-0 flex-1">
+          <CompactMeals lunch={lunch} dinner={dinner} />
+        </div>
+        {canEdit && <Pencil />}
+      </DayCard>
     )
   }
 
@@ -182,17 +319,25 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
   const renderGridCard = (day: string) => {
     const { lunch, dinner } = itemsByDay[day]
     return (
-      <div
+      <DayCard
         key={day}
-        className={`rounded-[20px] border-2 border-crema-300 bg-white p-4 transition-transform duration-180 hover:-translate-y-0.5 hover:shadow-pop ${
+        day={day}
+        canEdit={canEdit}
+        onOpen={openEditor}
+        className={`rounded-[20px] border-2 border-crema-300 bg-white p-4 hover:-translate-y-0.5 hover:shadow-pop ${
           isPast(day) ? 'opacity-[0.55]' : ''
         }`}
       >
-        <h3 className="mb-2 text-base font-extrabold">
-          {formatDayName(day)} {dayNumber(day)}
-        </h3>
-        <CompactMeals lunch={lunch} dinner={dinner} />
-      </div>
+        <div className="flex items-center gap-3.5">
+          <div className="min-w-0 flex-1">
+            <h3 className="mb-2 text-base font-extrabold">
+              {formatDayName(day)} {dayNumber(day)}
+            </h3>
+            <CompactMeals lunch={lunch} dinner={dinner} />
+          </div>
+          {canEdit && <Pencil />}
+        </div>
+      </DayCard>
     )
   }
 
@@ -200,91 +345,95 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
   const renderUniformCard = (day: string) => {
     const { lunch, dinner } = itemsByDay[day]
     return (
-      <div
+      <DayCard
         key={day}
-        className="rounded-card border-2 border-crema-300 bg-white p-5 transition-transform duration-180 hover:-translate-y-0.5 hover:shadow-pop"
+        day={day}
+        canEdit={canEdit}
+        onOpen={openEditor}
+        className="rounded-card border-2 border-crema-300 bg-white p-5 hover:-translate-y-0.5 hover:shadow-pop"
       >
-        {/* One line, like every other card: the day name and its number are read
-            as one label ("Lunes 10"), and splitting them across two block
-            elements made next week look like a different screen from this one. */}
-        <h3 className="text-xl font-extrabold">
-          {formatDayName(day)} {dayNumber(day)}
-        </h3>
-        <div className="mt-3.5">
-          <MealBlock item={lunch} mealType="lunch" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
+        <div className="flex items-center gap-3.5">
+          <div className="min-w-0 flex-1">
+            {/* One line, like every other card: the day name and its number are read
+                as one label ("Lunes 10"), and splitting them across two block
+                elements made next week look like a different screen from this one. */}
+            <h3 className="text-xl font-extrabold">
+              {formatDayName(day)} {dayNumber(day)}
+            </h3>
+            <div className="mt-3.5">
+              <MealBlock item={lunch} mealType="lunch" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
+            </div>
+            <div className="my-3">{separator}</div>
+            <MealBlock item={dinner} mealType="dinner" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
+          </div>
+          {canEdit && <Pencil />}
         </div>
-        <div className="my-3">{separator}</div>
-        <MealBlock item={dinner} mealType="dinner" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
-      </div>
+      </DayCard>
     )
   }
 
-  /** Dashed card with one tappable row per dish. */
-  const renderEditCard = (day: string) => {
+  /**
+   * Desktop, with a day open: seven equal cards in two columns beside the panel.
+   * Today keeps its badge but loses the big card — the panel is the thing to
+   * look at now, and the day being edited is the one that has to stand out.
+   */
+  const renderEditingCard = (day: string) => {
     const { lunch, dinner } = itemsByDay[day]
+    const isOpen = day === openDay
     const isToday = day === todayDay
     return (
-      <div key={day} className="card-edit lg:rounded-card">
-        <h3 className={`mb-2 text-[15px] font-extrabold lg:text-[17px] ${isToday ? 'text-rojo-500' : ''}`}>
-          {formatDayName(day)}
-          {isToday ? ' · HOY' : ''}
+      <DayCard
+        key={day}
+        day={day}
+        canEdit={canEdit}
+        onOpen={openEditor}
+        className={`rounded-[18px] p-3.5 ${
+          isOpen
+            ? 'border-[3px] border-tinta-900 bg-crema-100 shadow-pop-sm'
+            : isToday
+              ? 'border-2 border-amarillo-500 bg-white'
+              : 'border-2 border-crema-300 bg-white'
+        } ${isPast(day) && !isOpen ? 'opacity-[0.55]' : ''}`}
+      >
+        <h3 className="mb-1.5 flex items-center gap-2 text-[15px] font-extrabold">
+          {formatDayName(day)} {dayNumber(day)}
+          {isToday && (
+            <span className="rounded-full bg-amarillo-500 px-2 py-0.5 text-[11px] font-extrabold text-tinta-900">
+              HOY
+            </span>
+          )}
+          {isOpen && (
+            <span className="rounded-full bg-tinta-900 px-2 py-0.5 text-[11px] font-extrabold text-crema-100">
+              EDITANDO
+            </span>
+          )}
         </h3>
-        <div className="flex flex-col gap-1.5">
-          {lunch?.single && (
-            <DishEditor value={lunch.single} slot="single" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'single', name, cat)} onAddNewDish={onAddNewDish} />
-          )}
-          {lunch?.starter && (
-            <DishEditor value={lunch.starter} slot="starter" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'starter', name, cat)} onAddNewDish={onAddNewDish} />
-          )}
-          {lunch?.main && (
-            <DishEditor value={lunch.main} slot="main" mealType="lunch" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'lunch', 'main', name, cat)} onAddNewDish={onAddNewDish} />
-          )}
-          {dinner?.main && (
-            <DishEditor value={dinner.main} slot="main" mealType="dinner" day={day} dishIdeas={dishIdeas} onUpdate={(name, cat) => onUpdateDish(day, 'dinner', 'main', name, cat)} onAddNewDish={onAddNewDish} />
-          )}
-        </div>
-      </div>
+        <CompactMeals lunch={lunch} dinner={dinner} />
+      </DayCard>
     )
   }
 
-  if (isEditing) {
-    return (
-      <div>
-        <div className="anim-banner sticky top-0 z-10 flex items-center justify-between gap-3 rounded-[20px] bg-tinta-900 py-3 px-[18px] text-crema-100 lg:py-4 lg:px-6">
-          <div className="min-w-0">
-            <p className="text-base font-extrabold lg:text-[19px]">
-              ✎ Estás editando la semana del {formatWeekRange(menu.week_start, menu.week_end)}
-            </p>
-            <p className="text-xs font-bold font-sans text-crema-400 lg:text-sm">
-              Toca un plato para cambiarlo. Los cambios se guardan solos.
-            </p>
-          </div>
-          <button
-            onClick={() => onToggleEditing(false)}
-            className="flex-none rounded-full bg-verde-600 px-4 py-2 text-sm font-extrabold text-white transition-colors duration-120 hover:bg-verde-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-amarillo-500 focus:ring-offset-2 focus:ring-offset-tinta-900 lg:px-[22px] lg:py-2.5 lg:text-[15px]"
-          >
-            ✓ Hecho
-          </button>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-2.5 lg:hidden">
-          {sortedDays.map((day) => renderEditCard(day))}
-        </div>
-
-        <div className="mt-5 hidden lg:block">
-          <div className="grid grid-cols-4 gap-5">
-            {firstRowDays.map((day) => renderEditCard(day))}
-          </div>
-          <div className="mt-5 grid grid-cols-3 gap-5">
-            {secondRowDays.map((day) => renderEditCard(day))}
-          </div>
-        </div>
-      </div>
+  const dayEditor = (surface: 'sheet' | 'panel') =>
+    openDay && (
+      <DayEditor
+        day={openDay}
+        lunch={itemsByDay[openDay]?.lunch ?? null}
+        dinner={itemsByDay[openDay]?.dinner ?? null}
+        dishIdeas={dishIdeas}
+        rules={rules}
+        surface={surface}
+        onClose={closeEditor}
+        onReplaceCourse={(mealType, slot, dishName) =>
+          onReplaceCourse(openDay, mealType, slot, dishName)
+        }
+        onAddFirstCourse={(mealType, dishName) => onAddFirstCourse(openDay, mealType, dishName)}
+        onRemoveFirstCourse={(mealType) => onRemoveFirstCourse(openDay, mealType)}
+        onAddNewDish={onAddNewDish}
+      />
     )
-  }
 
   return (
-    <div>
+    <div ref={rootRef}>
       {/* Mobile: today highlighted, every other day as a compact row */}
       <div className="mt-4 flex flex-col gap-2.5 lg:hidden">
         {sortedDays.map((day) =>
@@ -298,7 +447,14 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
 
       {/* Desktop: today on the left + 3×2 grid; uniform 4+3 when no day is today */}
       <div className="mt-6 hidden lg:block">
-        {todayDay ? (
+        {openDay && isDesktop ? (
+          <div className="flex items-start gap-5">
+            <div className="grid flex-1 grid-cols-2 gap-3.5">
+              {sortedDays.map((day) => renderEditingCard(day))}
+            </div>
+            {dayEditor('panel')}
+          </div>
+        ) : todayDay ? (
           <div className="flex items-stretch gap-5">
             <div className="w-[340px] flex-none">{renderTodayCard(todayDay, 'desktop')}</div>
             <div className="grid flex-1 grid-cols-3 grid-rows-2 gap-3.5">
@@ -319,11 +475,7 @@ export default function MenuAgendaView({ menu, dishIdeas, onUpdateDish, onAddNew
         )}
       </div>
 
-      {!readOnly && (
-        <button onClick={() => onToggleEditing(true)} className="btn-dark mt-4 w-full lg:hidden">
-          ✎ Editar la semana
-        </button>
-      )}
+      {!isDesktop && dayEditor('sheet')}
     </div>
   )
 }
