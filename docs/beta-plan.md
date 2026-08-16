@@ -27,7 +27,7 @@ sin salida.
 | M10 — semana de lunes a domingo | **En producción** (PR #14, ago 2026) |
 | M9 — feedback en la cabecera | **En producción** (PR #16, ago 2026) |
 | M6 — navegación de tres destinos | **En producción** (PR #16, ago 2026) |
-| M6 — editar tocando el día | **Listo para mergear** (ago 2026), con el override manual de M2b |
+| M6 — editar tocando el día | **Listo para mergear** (PR #18, ago 2026), con el override manual de M2b |
 
 **Los diez must-have están hechos.** Con M6 completo se cierra también el punto 3 de
 M2b, el override manual "hoy quiero dos platos", que se había aplazado justo hasta
@@ -479,7 +479,7 @@ Tamaño: M. Depende de: nada.
 > - **Cambiar de destino no sale del modo edición**: se vuelve a Semana y sigue
 >   donde estaba. *(Sin efecto desde que el modo edición de semana desapareció.)*
 
-> **La edición tocando el día está construida** (ago 2026), siguiendo
+> **La edición tocando el día está construida** (PR #18, ago 2026), siguiendo
 > `specs/edit-day.md` completa. **El modo de edición de toda la semana desaparece**:
 > el banner "Estás editando", el CTA "✎ Editar la semana" de la cabecera y el de
 > móvil, y `DishEditor.tsx` entero. Ahora hay un lápiz por día, la tarjeta entera es
