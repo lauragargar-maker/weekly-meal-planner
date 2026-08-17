@@ -513,6 +513,17 @@ Tamaño: M. Depende de: nada.
 > - Analítica: `menu_item_edited` pierde `selected_category` (elegir plato ya no
 >   reestructura la comida) y aparecen `day_editor_opened` (`surface`) y
 >   `day_format_changed` (`meal_type`, `action`).
+>
+> **Corrección tras probarlo en producción (ago 2026):** el lápiz por día se queda
+> **sólo en móvil**. De 1024 px arriba se retira y vuelve el botón "✎ Editar la
+> semana" a la cabecera, que abre el panel en el día de hoy (o en el primero de la
+> semana, si la semana en pantalla no es esta); las tarjetas siguen siendo pulsables
+> como atajo. El motivo, medido en pantalla: las tarjetas de la rejilla 3×2 miden
+> ~180 px a 1024, y el círculo de 44 px más su hueco se llevaba un tercio del ancho,
+> partiendo cada nombre de plato en tres y cuatro líneas. **Ver la semana es la tarea
+> principal y editarla la secundaria**, así que la afordancia permanente no puede
+> pagarse con el texto. En móvil no se toca: ahí la fila tiene ancho de sobra y el
+> lápiz es la única señal de que el día se puede tocar.
 
 Las dos usuarias intentaron pinchar en el día para editarlo. Y el logotipo como botón
 de vuelta (punto 2 del backlog del rediseño) ya falló en las pruebas de Laura; con

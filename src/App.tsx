@@ -72,6 +72,9 @@ function App({ household }: { household: Household }) {
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<Destination>('agenda')
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  // The day whose editor is open. It lives here because from 1024px up the way
+  // in is a header button, and the header is rendered here.
+  const [editingDay, setEditingDay] = useState<string | null>(null)
   // Tagged with the week it was produced for, so the warning does not follow the
   // user onto a week it says nothing about.
   const [degraded, setDegraded] = useState<{ title: string; detail: string; weekStart: string } | null>(null)
@@ -104,7 +107,20 @@ function App({ household }: { household: Household }) {
   const goTo = (destination: Destination) => {
     if (destination === view) return
     setView(destination)
+    setEditingDay(null)
     window.scrollTo({ top: 0 })
+  }
+
+  /**
+   * Where "Editar la semana" lands: today, or the first day of the week when the
+   * week on screen is not this one. Any other day is one click away — the whole
+   * grid stays clickable while the panel is open.
+   */
+  const firstEditableDay = (menu: WeeklyMenu | null): string | null => {
+    if (!menu) return null
+    const days = [...new Set(menu.menu_items.map((item) => item.day))].sort()
+    const today = formatLocalDate(new Date())
+    return days.find((day) => day === today) ?? days[0] ?? null
   }
 
   const loadDishIdeas = useCallback(async () => {
@@ -429,6 +445,8 @@ function App({ household }: { household: Household }) {
     if (newOffset < WEEK_RANGE.min || newOffset > WEEK_RANGE.max) return
 
     setWeekOffset(newOffset)
+    // An open day belongs to the week that is leaving.
+    setEditingDay(null)
     trackEvent('week_viewed', { offset: newOffset })
 
     const weekStart = weekStartFor(newOffset)
@@ -684,8 +702,17 @@ function App({ household }: { household: Household }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* No "Editar la semana": there is one way in and it is the day card
-                itself (`specs/edit-day.md` §1). */}
+            {/* From 1024px up this is the visible way into editing, and the day
+                cards are the shortcut. Below it, the pencil on each card does
+                the job and this button would compete with the bottom bar. */}
+            {view === 'agenda' && displayedMenu && !readOnly && !editingDay && (
+              <button
+                onClick={() => setEditingDay(firstEditableDay(displayedMenu))}
+                className="btn-dark hidden lg:inline-flex"
+              >
+                ✎ Editar la semana
+              </button>
+            )}
             <span className="hidden text-[13px] font-extrabold text-tinta-500 md:inline">
               {household.name}
             </span>
@@ -785,7 +812,9 @@ function App({ household }: { household: Household }) {
                   onAddFirstCourse={handleAddFirstCourse}
                   onRemoveFirstCourse={handleRemoveFirstCourse}
                   onAddNewDish={handleAddNewDish}
-                  onOpenDay={(_day, surface) => trackEvent('day_editor_opened', { surface })}
+                  openDay={editingDay}
+                  onOpenDay={setEditingDay}
+                  onDayOpened={(_day, surface) => trackEvent('day_editor_opened', { surface })}
                 />
               ) : readOnly ? (
                 <div className="card mx-auto mt-4 max-w-md text-center">
