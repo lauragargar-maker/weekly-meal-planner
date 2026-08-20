@@ -16,8 +16,15 @@ interface MenuAgendaViewProps {
   onAddFirstCourse: (dayISO: string, mealType: MealType, dishName: string) => void
   onRemoveFirstCourse: (dayISO: string, mealType: MealType) => void
   onAddNewDish: (dishData: NewDishIdea) => void
-  /** For analytics: which day was opened, and in which container. */
-  onOpenDay?: (dayISO: string, surface: 'sheet' | 'panel') => void
+  /**
+   * The day being edited, or null. It lives in `App` because from 1024px up the
+   * way in is the "Editar la semana" button in the header, which is rendered
+   * there — the day cards are the shortcut, not the only door.
+   */
+  openDay: string | null
+  onOpenDay: (dayISO: string | null) => void
+  /** For analytics: in which container the day was opened. */
+  onDayOpened?: (dayISO: string, surface: 'sheet' | 'panel') => void
 }
 
 type MenuItem = WeeklyMenu['menu_items'][0]
@@ -172,9 +179,10 @@ export default function MenuAgendaView({
   onAddFirstCourse,
   onRemoveFirstCourse,
   onAddNewDish,
+  openDay,
   onOpenDay,
+  onDayOpened,
 }: MenuAgendaViewProps) {
-  const [openDay, setOpenDay] = useState<string | null>(null)
   // The day whose card should get the focus back, once the week has re-rendered.
   const [refocusDay, setRefocusDay] = useState<string | null>(null)
   const isDesktop = useMediaQuery(DESKTOP_QUERY)
@@ -215,11 +223,6 @@ export default function MenuAgendaView({
 
   const canEdit = !readOnly
 
-  // Navigating to another week unmounts nothing, so an open day would survive
-  // into a week it does not belong to.
-  useEffect(() => {
-    setOpenDay(null)
-  }, [menu.week_start])
 
   /**
    * §5: the focus comes back to the day card. It has to be found again after
@@ -238,12 +241,12 @@ export default function MenuAgendaView({
 
   const closeEditor = () => {
     setRefocusDay(openDay)
-    setOpenDay(null)
+    onOpenDay(null)
   }
 
   const openEditor = (day: string) => {
-    setOpenDay(day)
-    onOpenDay?.(day, isDesktop ? 'panel' : 'sheet')
+    onOpenDay(day)
+    onDayOpened?.(day, isDesktop ? 'panel' : 'sheet')
   }
 
   const separator = <div className="h-0.5 rounded bg-amarillo-300" />
@@ -275,15 +278,15 @@ export default function MenuAgendaView({
               {formatDayName(day)} {dayNumber(day)}
             </h3>
           )}
-          {/* The pencil shares the row with the meals rather than sitting in its
-              own line: it is what keeps the card of today short. */}
+          {/* On mobile the pencil shares the row with the meals rather than
+              sitting in its own line: it is what keeps the card of today short. */}
           <div className="flex items-center gap-3.5">
             <div className="min-w-0 flex-1">
               <MealBlock item={lunch} mealType="lunch" circle={44} nameClass={nameClass} />
               <div className={desktop ? 'my-[18px]' : 'my-3.5'}>{separator}</div>
               <MealBlock item={dinner} mealType="dinner" circle={44} nameClass={nameClass} />
             </div>
-            {canEdit && <Pencil strong />}
+            {canEdit && !desktop && <Pencil strong />}
           </div>
         </DayCard>
       </div>
@@ -328,15 +331,15 @@ export default function MenuAgendaView({
           isPast(day) ? 'opacity-[0.55]' : ''
         }`}
       >
-        <div className="flex items-center gap-3.5">
-          <div className="min-w-0 flex-1">
-            <h3 className="mb-2 text-base font-extrabold">
-              {formatDayName(day)} {dayNumber(day)}
-            </h3>
-            <CompactMeals lunch={lunch} dinner={dinner} />
-          </div>
-          {canEdit && <Pencil />}
-        </div>
+        {/* No pencil from 1024px up: these cards are ~180px wide, and a 44px
+            circle plus its gap took a third of the room the dish names needed,
+            breaking every one of them over three lines. Reading the week is the
+            main job here; editing is the second one, and it has the header
+            button. The card stays clickable as the shortcut. */}
+        <h3 className="mb-2 text-base font-extrabold">
+          {formatDayName(day)} {dayNumber(day)}
+        </h3>
+        <CompactMeals lunch={lunch} dinner={dinner} />
       </DayCard>
     )
   }
@@ -352,22 +355,17 @@ export default function MenuAgendaView({
         onOpen={openEditor}
         className="rounded-card border-2 border-crema-300 bg-white p-5 hover:-translate-y-0.5 hover:shadow-pop"
       >
-        <div className="flex items-center gap-3.5">
-          <div className="min-w-0 flex-1">
-            {/* One line, like every other card: the day name and its number are read
-                as one label ("Lunes 10"), and splitting them across two block
-                elements made next week look like a different screen from this one. */}
-            <h3 className="text-xl font-extrabold">
-              {formatDayName(day)} {dayNumber(day)}
-            </h3>
-            <div className="mt-3.5">
-              <MealBlock item={lunch} mealType="lunch" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
-            </div>
-            <div className="my-3">{separator}</div>
-            <MealBlock item={dinner} mealType="dinner" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
-          </div>
-          {canEdit && <Pencil />}
+        {/* One line, like every other card: the day name and its number are read
+            as one label ("Lunes 10"), and splitting them across two block
+            elements made next week look like a different screen from this one. */}
+        <h3 className="text-xl font-extrabold">
+          {formatDayName(day)} {dayNumber(day)}
+        </h3>
+        <div className="mt-3.5">
+          <MealBlock item={lunch} mealType="lunch" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
         </div>
+        <div className="my-3">{separator}</div>
+        <MealBlock item={dinner} mealType="dinner" circle={34} nameClass="text-base font-extrabold leading-[1.25]" />
       </DayCard>
     )
   }
