@@ -6,12 +6,17 @@ import { Ingredient } from '../types'
  * fixed position", which only means anything if the position never moves.
  *
  * The order is the one the spec pins down (Verdura, Carne, Pescado, Pasta,
- * Arroz, Legumbre) with the two the spec omits appended: a dish cannot be
+ * Arroz, Legumbre) with the ones the spec omits appended: a dish cannot be
  * tagged without them.
  *
  * Decided 2026-08-05: the onboarding step-3 filters show ALL of these, plus
  * "Todos" in front. The spec's shorter list left egg and potato dishes
  * reachable only through "Todos".
+ *
+ * New ingredients go at the END, never in the middle: §4b's tint lands on "the
+ * chip in its fixed position", so inserting Lácteos next to the other proteins
+ * would move every chip after it and break that promise for households that
+ * already know where their chip is.
  */
 export const INGREDIENTS: { value: Ingredient; label: string }[] = [
   { value: 'vegetable', label: 'Verdura' },
@@ -22,6 +27,7 @@ export const INGREDIENTS: { value: Ingredient; label: string }[] = [
   { value: 'legume', label: 'Legumbre' },
   { value: 'egg', label: 'Huevo' },
   { value: 'potato', label: 'Patata' },
+  { value: 'dairy', label: 'Lácteos' },
 ]
 
 const LABELS = new Map(INGREDIENTS.map(({ value, label }) => [value, label]))

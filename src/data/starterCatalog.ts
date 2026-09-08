@@ -81,6 +81,11 @@ export const STARTER_CATALOG: NewDishIdea[] = [
   { name: 'Verduras a la plancha', category: 'main', meal_type: 'dinner', day_type: 'anyday', main_ingredients: ['vegetable'] },
   { name: 'Coliflor gratinada', category: 'main', meal_type: 'dinner', day_type: 'anyday', main_ingredients: ['vegetable'] },
 
+  // Segundos de lácteos (dairy mains). Tagged `dairy` alone: the cheese IS the
+  // dish, and dairy counts as a protein, so the same-day rule treats this like
+  // any meat or fish second.
+  { name: 'Provolone al horno', category: 'main', meal_type: 'dinner', day_type: 'anyday', main_ingredients: ['dairy'] },
+
   // Pasta y arroz para comidas (lunch-only carb mains; the generator never puts pasta at dinner)
   { name: 'Macarrones con tomate', category: 'main', meal_type: 'lunch', day_type: 'anyday', main_ingredients: ['pasta'] },
   { name: 'Espaguetis a la carbonara', category: 'main', meal_type: 'lunch', day_type: 'anyday', main_ingredients: ['pasta'] },

@@ -15,7 +15,7 @@ export interface HouseholdRules {
   // --- Block B: not twice in the same day ---
   /** Don't repeat pasta / rice / potato between lunch and dinner. */
   noRepeatCarb: boolean
-  /** Don't repeat meat / fish / egg / legume between lunch and dinner. */
+  /** Don't repeat meat / fish / egg / legume / dairy between lunch and dinner. */
   noRepeatProtein: boolean
 
   // --- Block C: how the week adds up ---
@@ -40,7 +40,7 @@ export interface HouseholdRules {
  * nearly every dinner brings some protein.
  */
 export const CARB_AXIS: Ingredient[] = ['pasta', 'rice', 'potato']
-export const PROTEIN_AXIS: Ingredient[] = ['meat', 'fish', 'egg', 'legume']
+export const PROTEIN_AXIS: Ingredient[] = ['meat', 'fish', 'egg', 'legume', 'dairy']
 
 /**
  * What a household gets when it never touches a setting.
