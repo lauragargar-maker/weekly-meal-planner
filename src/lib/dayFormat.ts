@@ -115,44 +115,6 @@ export const replaceCourse = (item: MenuItem, slot: CourseSlot, dishName: string
   [slot]: dishName,
 })
 
-/**
- * Weekend from the ISO string's own parts.
- *
- * `new Date('2026-08-22')` is parsed as UTC midnight, so west of Greenwich its
- * `getDay()` is the day before. Building the date from the parts keeps it local,
- * the way `weekStart.ts` does for the same reason.
- */
-const isWeekendDay = (dayISO: string): boolean => {
-  const [year, month, day] = dayISO.split('-').map(Number)
-  const weekday = new Date(year, month - 1, day).getDay()
-  return weekday === 0 || weekday === 6
-}
-
-/**
- * The dishes the picker offers for one meal (§4).
- *
- * Only the dish's own tags narrow the list — the meal it is for, and whether it
- * is a weekday or weekend dish. Its course (`category`) does not: the spec drops
- * the "Primeros / Segundos / Únicos" filter, and a household that files a soup
- * as a starter should still be able to make it the whole dinner.
- *
- * Nothing here reads the house rules. The old editor hid every pasta main at
- * dinner outright; that is now a note on the dish (`ruleWarningFor`), because a
- * rule the user chose is a rule the user can knowingly break for one day.
- */
-export const eligibleDishesFor = (
-  dishIdeas: DishIdea[],
-  mealType: MealType,
-  dayISO: string,
-): DishIdea[] => {
-  const weekend = isWeekendDay(dayISO)
-  return dishIdeas.filter(dish => {
-    if (dish.day_type === 'weekendday' && !weekend) return false
-    if (dish.day_type === 'weekday' && weekend) return false
-    return dish.meal_type === 'both' || dish.meal_type === mealType
-  })
-}
-
 const has = (dish: DishIdea, ingredient: Ingredient): boolean =>
   dish.main_ingredients.includes(ingredient)
 

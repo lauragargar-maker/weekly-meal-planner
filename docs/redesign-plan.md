@@ -403,14 +403,28 @@ No es un cambio de diseño sino de datos. A resolver antes de tocarlo:
   `formatJoinCode` en `FamilyView` habría que ajustarlo al nuevo formato.
 
 ### 4. Un plato nuevo puede acabar en un hueco que no le corresponde
-Al crear un plato desde el sheet, `handleModalConfirm` llama a `onUpdate(name, category)` y lo
-coloca en el hueco actual **sin comprobar** que lo que el usuario acaba de describir encaje ahí.
-Se puede marcar un plato como "fin de semana" y quedar colocado en un lunes, o marcarlo "cena"
-y quedar en una comida.
+✅ **Resuelto (sep 2026)**, por el lado contrario al que se suponía.
 
-Comportamiento preexistente, no introducido por el rediseño. Decidir entre avisar
-("Lo has marcado como de fin de semana, ¿lo ponemos igual el lunes?"), ajustar el plato al
-contexto, o impedirlo. Toca reglas de negocio.
+El problema descrito era que al crear un plato desde el sheet se colocaba en el hueco actual
+**sin comprobar** que lo que el usuario acababa de describir encajara ahí: se podía marcar un
+plato como "fin de semana" y quedar colocado en un lunes, o marcarlo "cena" y quedar en una
+comida. Las salidas que se barajaban eran avisar, ajustar el plato al contexto, o impedirlo.
+
+Ninguna de las tres. Lo que estaba mal era la premisa —que hay huecos que "no le
+corresponden" a un plato— y el filtro que la aplicaba era además un callejón sin salida: el
+plato marcado "cena" no salía en la lista de una comida, y escribir su nombre en "Añadir un
+plato nuevo" se rechazaba por duplicado del plato que el usuario no podía ver. Lo mismo con
+"fin de semana" en un lunes.
+
+La selección manual ya no filtra por `meal_type` ni por `day_type` (ni por `category`, que
+cayó en M6). Ofrece el catálogo entero, y buscador y chips de ingrediente son lo único que
+estrecha la lista. Las tres etiquetas siguen mandando en el generador automático: dicen dónde
+va el plato **normalmente**, no dónde **puede** ir, y una elección hecha a mano manda sobre
+ellas. Es el mismo criterio que ya se aplicaba a las reglas de la casa, que avisan
+(`ruleWarningFor`) en vez de esconder.
+
+`eligibleDishesFor` ha desaparecido de `dayFormat.ts`: sin nada que filtrar, `DayEditor` pasa
+`dishIdeas` directamente a `DishPicker`, y el porqué vive en el comentario de esa prop.
 
 ### 5. No se puede pasar de plato único a primero + segundo de forma explícita
 ✅ **Resuelto en M6** (ago 2026, `specs/edit-day.md` §3). La hoja del día lleva

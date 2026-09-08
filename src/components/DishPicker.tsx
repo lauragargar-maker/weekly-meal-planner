@@ -7,7 +7,20 @@ interface DishPickerProps {
   title: string
   /** "Viernes 24 · ahora: Crema de calabacín" */
   subtitle: string
-  /** Already narrowed to the meal — see `eligibleDishesFor`. */
+  /**
+   * The whole catalogue, unfiltered — the search box and the ingredient chips
+   * are the only narrowing there is (§4).
+   *
+   * Nothing about the slot hides a dish: not its course (`category`), not the
+   * meal it is tagged for (`meal_type`), not the weekday / weekend tag
+   * (`day_type`). Those tags say where a dish *usually* goes and they still
+   * steer the automatic generator (`menuGenerator.ts`); they never say where the
+   * user is *allowed* to put it. Filtering on them left no way out at all: the
+   * dish was missing from the list, and typing its name into "Añadir un plato
+   * nuevo" was refused as a duplicate of the dish the user could not see.
+   *
+   * The house rules do not hide anything either — they annotate (`warningFor`).
+   */
   dishes: DishIdea[]
   /** The dish currently in the slot, ticked in the list. Absent when adding one. */
   currentDish?: string

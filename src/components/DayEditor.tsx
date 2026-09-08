@@ -6,7 +6,6 @@ import {
   DayCourse,
   MealType,
   coursesOf,
-  eligibleDishesFor,
   formatControlFor,
   ruleWarningFor,
 } from '../lib/dayFormat'
@@ -305,7 +304,7 @@ export default function DayEditor({
             ? `${dayTitle} · elige un plato para empezar`
             : `${dayTitle} · ahora: ${pick.current}`
         }
-        dishes={eligibleDishesFor(dishIdeas, pick.mealType, day)}
+        dishes={dishIdeas}
         currentDish={pick.current}
         warningFor={dish =>
           ruleWarningFor(dish, rules, {
