@@ -131,25 +131,29 @@ const isWeekendDay = (dayISO: string): boolean => {
 /**
  * The dishes the picker offers for one meal (§4).
  *
- * Only the dish's own tags narrow the list — the meal it is for, and whether it
- * is a weekday or weekend dish. Its course (`category`) does not: the spec drops
- * the "Primeros / Segundos / Únicos" filter, and a household that files a soup
- * as a starter should still be able to make it the whole dinner.
+ * Only the weekday / weekend tag narrows the list. Neither the course
+ * (`category`) nor the meal (`meal_type`) does:
+ *
+ * - `category`: the spec drops the "Primeros / Segundos / Únicos" filter, and a
+ *   household that files a soup as a starter should still be able to make it the
+ *   whole dinner.
+ * - `meal_type`: hiding a dinner dish at lunch left the user with no way out at
+ *   all. The picker offered no "Merluza", and adding it there was refused as a
+ *   duplicate of the dish they could not see. `meal_type` still steers the
+ *   generator (`menuGenerator.ts`) — it is the household saying where the dish
+ *   *usually* goes, not where it is *allowed* to go, and a choice the user makes
+ *   by hand outranks it.
  *
  * Nothing here reads the house rules. The old editor hid every pasta main at
  * dinner outright; that is now a note on the dish (`ruleWarningFor`), because a
  * rule the user chose is a rule the user can knowingly break for one day.
  */
-export const eligibleDishesFor = (
-  dishIdeas: DishIdea[],
-  mealType: MealType,
-  dayISO: string,
-): DishIdea[] => {
+export const eligibleDishesFor = (dishIdeas: DishIdea[], dayISO: string): DishIdea[] => {
   const weekend = isWeekendDay(dayISO)
   return dishIdeas.filter(dish => {
     if (dish.day_type === 'weekendday' && !weekend) return false
     if (dish.day_type === 'weekday' && weekend) return false
-    return dish.meal_type === 'both' || dish.meal_type === mealType
+    return true
   })
 }
 

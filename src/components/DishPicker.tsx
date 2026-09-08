@@ -7,7 +7,7 @@ interface DishPickerProps {
   title: string
   /** "Viernes 24 · ahora: Crema de calabacín" */
   subtitle: string
-  /** Already narrowed to the meal — see `eligibleDishesFor`. */
+  /** Already narrowed to the day — see `eligibleDishesFor`. */
   dishes: DishIdea[]
   /** The dish currently in the slot, ticked in the list. Absent when adding one. */
   currentDish?: string

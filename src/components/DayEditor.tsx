@@ -305,7 +305,7 @@ export default function DayEditor({
             ? `${dayTitle} · elige un plato para empezar`
             : `${dayTitle} · ahora: ${pick.current}`
         }
-        dishes={eligibleDishesFor(dishIdeas, pick.mealType, day)}
+        dishes={eligibleDishesFor(dishIdeas, day)}
         currentDish={pick.current}
         warningFor={dish =>
           ruleWarningFor(dish, rules, {

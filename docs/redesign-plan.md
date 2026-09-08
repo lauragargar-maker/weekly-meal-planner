@@ -412,6 +412,14 @@ Comportamiento preexistente, no introducido por el rediseño. Decidir entre avis
 ("Lo has marcado como de fin de semana, ¿lo ponemos igual el lunes?"), ajustar el plato al
 contexto, o impedirlo. Toca reglas de negocio.
 
+**La mitad de `meal_type` está resuelta (sep 2026)**, y por el lado contrario al que se
+suponía: la selección manual ya no filtra por comida/cena, así que colocar un plato de cena
+en una comida es ahora una decisión explícita del usuario, no un descuido. Antes era además
+un callejón sin salida: el plato no salía en la lista y crearlo de nuevo se rechazaba por
+duplicado. `meal_type` sigue mandando en el generador automático — dice dónde va el plato
+*normalmente*, no dónde *puede* ir. Queda abierto el mismo caso para `day_type`, que sí
+sigue filtrando la lista.
+
 ### 5. No se puede pasar de plato único a primero + segundo de forma explícita
 ✅ **Resuelto en M6** (ago 2026, `specs/edit-day.md` §3). La hoja del día lleva
 `＋ Primer plato` / `− Quitar el primero` en la cabecera de cada comida, y el primero **lo
