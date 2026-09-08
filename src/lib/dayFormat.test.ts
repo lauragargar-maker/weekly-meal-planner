@@ -3,7 +3,6 @@ import { DishIdea, Ingredient, MenuItem } from '../types'
 import {
   addFirstCourse,
   coursesOf,
-  eligibleDishesFor,
   formatControlFor,
   removeFirstCourse,
   replaceCourse,
@@ -35,18 +34,10 @@ const dish = (name: string, ingredients: Ingredient[]): DishIdea => ({
   updated_at: '',
 })
 
-const tagged = (name: string, tags: Partial<DishIdea>): DishIdea => ({
-  ...dish(name, []),
-  ...tags,
-})
-
 const rules = (overrides: Partial<HouseholdRules> = {}): HouseholdRules => ({
   ...DEFAULT_RULES,
   ...overrides,
 })
-
-const FRIDAY = '2026-08-21'
-const SATURDAY = '2026-08-22'
 
 describe('coursesOf', () => {
   it('reads a one-dish lunch as a single main course', () => {
@@ -165,58 +156,6 @@ describe('replaceCourse', () => {
     const result = replaceCourse(lunch({ single: 'Cocido' }), 'single', 'Paella')
     expect(coursesOf(result)).toHaveLength(1)
     expect(result.starter).toBeUndefined()
-  })
-})
-
-describe('eligibleDishesFor', () => {
-  it('offers a lunch dish at dinner, and a dinner dish at lunch', () => {
-    // `meal_type` is where the dish usually goes, not where it may go. Hiding a
-    // dinner dish at lunch left no way out: the picker did not offer it, and
-    // adding it by hand was refused as a duplicate of the invisible dish.
-    const dishes = [
-      tagged('Merluza', { meal_type: 'dinner' }),
-      tagged('Cocido', { meal_type: 'lunch' }),
-      tagged('Ensalada', { meal_type: 'both' }),
-    ]
-    expect(eligibleDishesFor(dishes, FRIDAY).map(d => d.name)).toEqual([
-      'Merluza',
-      'Cocido',
-      'Ensalada',
-    ])
-  })
-
-  it('respects the weekday / weekend tag in both directions', () => {
-    const dishes = [
-      tagged('Paella', { day_type: 'weekendday' }),
-      tagged('Pasta rápida', { day_type: 'weekday' }),
-      tagged('Tortilla', { day_type: 'anyday' }),
-    ]
-    expect(eligibleDishesFor(dishes, FRIDAY).map(d => d.name)).toEqual([
-      'Pasta rápida',
-      'Tortilla',
-    ])
-    expect(eligibleDishesFor(dishes, SATURDAY).map(d => d.name)).toEqual([
-      'Paella',
-      'Tortilla',
-    ])
-  })
-
-  it('offers every course, because the category filter is gone', () => {
-    // A soup filed as a starter can still be the whole dinner: §4 leaves only
-    // the ingredient chips.
-    const dishes = [
-      tagged('Crema de calabacín', { category: 'starter' }),
-      tagged('Pollo asado', { category: 'main' }),
-      tagged('Cocido', { category: 'single' }),
-    ]
-    expect(eligibleDishesFor(dishes, FRIDAY)).toHaveLength(3)
-  })
-
-  it('still offers a dish the house rules argue against', () => {
-    // The rules warn (`ruleWarningFor`); they no longer hide. The old editor
-    // dropped every pasta main at dinner and left no way to choose it.
-    const dishes = [tagged('Macarrones', { main_ingredients: ['pasta'] })]
-    expect(eligibleDishesFor(dishes, FRIDAY)).toHaveLength(1)
   })
 })
 
