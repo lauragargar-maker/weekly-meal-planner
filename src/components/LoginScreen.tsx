@@ -15,9 +15,10 @@ export default function LoginScreen() {
   const requestCode = async (): Promise<boolean> => {
     // Fired on submit attempt (before the request resolves) so the login
     // funnel can measure drop-off between requesting a code and signing in,
-    // independent of technical send failures. The event name predates the move
-    // from magic links to codes; it is kept so the series stays continuous.
-    trackEvent('login_link_requested')
+    // independent of technical send failures. Renamed from
+    // `login_link_requested` once magic links gave way to codes; the two names
+    // are stitched back together as a merged event in Amplitude.
+    trackEvent('login_otp_requested')
 
     setSending(true)
     setError(null)
@@ -26,7 +27,7 @@ export default function LoginScreen() {
       return true
     } catch (err) {
       console.error('Error sending sign-in code:', err)
-      trackEvent('login_link_request_failed', {
+      trackEvent('login_otp_request_failed', {
         reason: err instanceof Error ? err.message : 'unknown',
       })
       setError(

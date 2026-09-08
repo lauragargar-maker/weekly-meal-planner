@@ -575,8 +575,13 @@ plantilla de correo de Supabase:
 2. Quitar `emailRedirectTo`.
 3. Paso de 6 dígitos en `LoginScreen` + llamada a `verifyOtp({ email, token, type: 'email' })`.
 
-El método del SDK no cambia. Nota: el evento `login_link_requested` se queda con
-nombre inexacto; se mantiene para no romper la continuidad de la serie en Amplitude.
+El método del SDK no cambia. Los dos eventos de analítica del login se quedaron un
+tiempo con nombre de enlace mágico, para no romper la continuidad de la serie en
+Amplitude; el 2026-08-24 se renombraron a `login_otp_requested` y
+`login_otp_request_failed`. El histórico anterior a esa fecha vive bajo los nombres
+viejos (`login_link_requested`, `login_link_request_failed`) y se lee junto al nuevo
+como evento combinado en Amplitude. La lista completa de eventos está en
+`docs/analytics-events.md`.
 
 **Configuración de Supabase que acompaña a esto**, por si hay que reproducirla:
 
