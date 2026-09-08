@@ -23,6 +23,7 @@ export type Ingredient =
   | 'fish'
   | 'egg'
   | 'legume'
+  | 'dairy'
   | 'vegetable'
 
 export interface DishIdea {

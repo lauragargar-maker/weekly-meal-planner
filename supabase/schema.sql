@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS dish_ideas (
   category TEXT NOT NULL CHECK (category IN ('starter', 'main', 'single')),
   meal_type TEXT NOT NULL CHECK (meal_type IN ('lunch', 'dinner', 'both')),
   main_ingredients TEXT[] NOT NULL DEFAULT '{}'
-    CHECK (main_ingredients <@ ARRAY['pasta', 'rice', 'potato', 'meat', 'fish', 'egg', 'legume', 'vegetable']::TEXT[]),
+    CHECK (main_ingredients <@ ARRAY['pasta', 'rice', 'potato', 'meat', 'fish', 'egg', 'legume', 'dairy', 'vegetable']::TEXT[]),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

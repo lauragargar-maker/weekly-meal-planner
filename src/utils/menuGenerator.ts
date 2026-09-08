@@ -43,7 +43,9 @@ const MAX_ATTEMPTS = 200
  * Food group per ingredient. Lives in code, not in the database: it enables
  * "don't repeat the protein group" and "don't repeat the carb" without touching
  * data or UI. Legumes count as protein — a plate of lentils is the protein dish
- * of the meal, not its side.
+ * of the meal, not its side. Dairy is here for the same reason: a provolone al
+ * horno is the protein of that dinner, and filing it anywhere else would let a
+ * household be served cheese twice in a day while "no repitas la proteína" is on.
  */
 export const INGREDIENT_GROUP: Record<Ingredient, 'carb' | 'protein' | 'vegetable'> = {
   pasta: 'carb',
@@ -53,6 +55,7 @@ export const INGREDIENT_GROUP: Record<Ingredient, 'carb' | 'protein' | 'vegetabl
   fish: 'protein',
   egg: 'protein',
   legume: 'protein',
+  dairy: 'protein',
   vegetable: 'vegetable',
 }
 
