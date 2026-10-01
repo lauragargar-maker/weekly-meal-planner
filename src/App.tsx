@@ -11,7 +11,7 @@ import BottomNav from './components/BottomNav'
 import { DESTINATIONS, Destination } from './components/destinations'
 import FeedbackSheet, { FeedbackScreen } from './components/FeedbackSheet'
 import { IconFeedback } from './components/icons'
-import { generateWeeklyMenu } from './utils/menuGenerator'
+import { formatDayName, generateWeeklyMenu } from './utils/menuGenerator'
 import { isCatalogReady } from './utils/catalogCheck'
 import { parseRules } from './lib/householdRules'
 import {
@@ -22,6 +22,7 @@ import {
   replaceCourse,
 } from './lib/dayFormat'
 import { describeDegradedMenu } from './lib/degradedMenu'
+import { swapDays } from './lib/swapDays'
 import { STARTER_CATALOG } from './data/starterCatalog'
 import { identifyHousehold, trackEvent } from './lib/analytics'
 import { WEEK_RANGE, formatLocalDate, weekEndFor, weekKeyFor, weekStartFor } from './utils/weekStart'
@@ -79,6 +80,10 @@ function App({ household }: { household: Household }) {
   // user onto a week it says nothing about.
   const [degraded, setDegraded] = useState<{ title: string; detail: string; weekStart: string } | null>(null)
   const isGeneratingMenuRef = useRef(false)
+  // The last swap, while its "Deshacer" toast is on screen.
+  const [lastSwap, setLastSwap] = useState<{ dayA: string; dayB: string } | null>(null)
+  // The two cards outlined for a moment after a swap or its undo.
+  const [highlightDays, setHighlightDays] = useState<string[]>([])
 
   const displayedWeekKey = weekKeyFor(weekOffset)
   const displayedMenu = menusByWeek[displayedWeekKey] ?? null
@@ -488,27 +493,17 @@ function App({ household }: { household: Household }) {
   }, [weekOffset, menusByWeek, dishIdeas, generateNewMenu, householdId, storeMenu])
 
   /**
-   * Rewrites one meal of one day and saves the week.
+   * Rewrites the meals of the week on screen and saves it.
    *
    * Every edit goes through here, so the optimistic update and the rollback are
-   * written once. The transform itself lives in `lib/dayFormat.ts`: what belongs
-   * here is the writing, not the rules about which slot holds what.
+   * written once. The transforms themselves live in `lib/`: what belongs here is
+   * the writing, not the rules about which slot holds what.
    */
-  const writeMeal = useCallback(async (
-    dayISO: string,
-    mealType: MealType,
-    transform: (item: MenuItem) => MenuItem,
-  ) => {
+  const writeWeek = useCallback(async (transform: (items: MenuItem[]) => MenuItem[]) => {
     const activeMenu = menusByWeek[displayedWeekKey]
     if (!activeMenu || readOnly) return
 
-    const matches = (item: MenuItem) => item.day === dayISO && item.meal_type === mealType
-    // A degraded week can be missing a meal outright. Editing it should add the
-    // row rather than quietly do nothing.
-    const updatedItems = activeMenu.menu_items.some(matches)
-      ? activeMenu.menu_items.map(item => (matches(item) ? transform(item) : item))
-      : [...activeMenu.menu_items, transform({ day: dayISO, meal_type: mealType })]
-
+    const updatedItems = transform(activeMenu.menu_items)
     storeMenu({ ...activeMenu, menu_items: updatedItems })
 
     try {
@@ -524,6 +519,20 @@ function App({ household }: { household: Household }) {
       storeMenu(activeMenu)
     }
   }, [menusByWeek, displayedWeekKey, readOnly, storeMenu])
+
+  /** Rewrites one meal of one day (`lib/dayFormat.ts`) and saves the week. */
+  const writeMeal = useCallback((
+    dayISO: string,
+    mealType: MealType,
+    transform: (item: MenuItem) => MenuItem,
+  ) => writeWeek(items => {
+    const matches = (item: MenuItem) => item.day === dayISO && item.meal_type === mealType
+    // A degraded week can be missing a meal outright. Editing it should add the
+    // row rather than quietly do nothing.
+    return items.some(matches)
+      ? items.map(item => (matches(item) ? transform(item) : item))
+      : [...items, transform({ day: dayISO, meal_type: mealType })]
+  }), [writeWeek])
 
   const handleReplaceCourse = useCallback((
     dayISO: string,
@@ -550,6 +559,42 @@ function App({ household }: { household: Household }) {
     writeMeal(dayISO, mealType, removeFirstCourse)
     trackEvent('day_format_changed', { meal_type: mealType, action: 'remove' })
   }, [writeMeal])
+
+  const handleSwapDays = useCallback((dayA: string, dayB: string, surface: 'sheet' | 'panel') => {
+    writeWeek(items => swapDays(items, dayA, dayB))
+    setLastSwap({ dayA, dayB })
+    setHighlightDays([dayA, dayB])
+    trackEvent('days_swapped', { surface })
+  }, [writeWeek])
+
+  // Undo is the same swap again: no snapshot to keep, and nothing to go stale if
+  // a dish was changed in between.
+  const handleUndoSwap = useCallback(() => {
+    if (!lastSwap) return
+    writeWeek(items => swapDays(items, lastSwap.dayA, lastSwap.dayB))
+    setHighlightDays([lastSwap.dayA, lastSwap.dayB])
+    setLastSwap(null)
+    trackEvent('days_swap_undone')
+  }, [lastSwap, writeWeek])
+
+  // Long enough to read the sentence and reach the button. The outline is only a
+  // pointer to where things went, so it is gone well before.
+  useEffect(() => {
+    if (!lastSwap) return
+    const timer = setTimeout(() => setLastSwap(null), 6000)
+    return () => clearTimeout(timer)
+  }, [lastSwap])
+  useEffect(() => {
+    if (highlightDays.length === 0) return
+    const timer = setTimeout(() => setHighlightDays([]), 1600)
+    return () => clearTimeout(timer)
+  }, [highlightDays])
+
+  // "Deshacer" acts on the week on screen, so it must not outlive it.
+  useEffect(() => {
+    setLastSwap(null)
+    setHighlightDays([])
+  }, [displayedWeekKey, view])
 
   const handleAddNewDish = useCallback(async (dishData: NewDishIdea) => {
     try {
@@ -815,6 +860,8 @@ function App({ household }: { household: Household }) {
                   openDay={editingDay}
                   onOpenDay={setEditingDay}
                   onDayOpened={(_day, surface) => trackEvent('day_editor_opened', { surface })}
+                  onSwapDays={handleSwapDays}
+                  highlightDays={highlightDays}
                 />
               ) : readOnly ? (
                 <div className="card mx-auto mt-4 max-w-md text-center">
@@ -880,6 +927,27 @@ function App({ household }: { household: Household }) {
       </div>
 
       <BottomNav active={view} onNavigate={goTo} />
+
+      {/* Above the bottom bar on mobile, where it would otherwise sit on top of
+          it; from 768px up the bar is gone and it drops to the usual place. */}
+      {lastSwap && (
+        <div
+          role="status"
+          className="anim-toast fixed bottom-[calc(76px+env(safe-area-inset-bottom))] left-1/2 z-40 flex w-max max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-3 rounded-full bg-tinta-900 py-1.5 pl-5 pr-1.5 text-sm font-extrabold text-crema-100 shadow-toast md:bottom-6"
+        >
+          <span className="min-w-0">
+            {formatDayName(lastSwap.dayA)} <span aria-hidden="true">⇄</span>
+            <span className="sr-only">y</span> {formatDayName(lastSwap.dayB).toLowerCase()} intercambiados
+          </span>
+          <button
+            type="button"
+            onClick={handleUndoSwap}
+            className="flex h-10 flex-none items-center rounded-full bg-amarillo-500 px-4 text-sm font-extrabold text-tinta-900 transition-colors duration-120 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-amarillo-500 focus:ring-offset-2 focus:ring-offset-tinta-900"
+          >
+            Deshacer
+          </button>
+        </div>
+      )}
 
       {feedbackOpen && session?.user && (
         <FeedbackSheet

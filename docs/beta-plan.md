@@ -758,10 +758,45 @@ omitió en la Fase 3 porque dependía de que existieran las reglas.
 
 ---
 
+## Después de la beta: peticiones del feedback
+
+### Intercambiar un día por otro ✅ construido
+
+> Una usuaria, desde el botón de feedback: *"Me gustaría poder intercambiar un día por
+> otro sin tener que cambiar plato por plato a mano"*.
+
+Un botón **"⇄ Intercambiar con otro día"** en el editor del día, bajo la comida y la
+cena. Abre un segundo paso (el mismo hueco que el selector de platos) con los otros seis
+días de la semana; elegir uno intercambia los dos días y cierra el editor. Las dos
+tarjetas se marcan en amarillo un momento y sale un aviso con **"Deshacer"** durante
+seis segundos. Es igual en la hoja de móvil y tablet que en el panel de escritorio.
+
+Decisiones (Laura, 2026-10-01):
+
+- **Sólo el día entero**, nunca una comida suelta. Es lo que lo hace seguro: las reglas
+  de día comparan la comida con la cena del mismo día, y las dos viajan juntas; los
+  recuentos semanales no cambian porque los platos siguen en la semana. Por eso no hay
+  avisos de reglas. Intercambiar una sola comida obligaría a avisar como en el selector
+  de platos. Está en `src/lib/swapDays.ts`, con tests.
+- **Deshacer en vez de confirmar**, como el resto de la edición, que guarda al momento.
+  Deshacer es volver a intercambiar los mismos dos días: no se guarda una copia de la
+  semana, así que no pisa un plato cambiado entre medias. El aviso desaparece al cambiar
+  de semana o de destino, porque actúa sobre la semana en pantalla.
+- **Los días pasados se pueden elegir**, atenuados como en la semana.
+- **Sin arrastrar y soltar, de momento.** Tendría que convivir con el botón de todas
+  formas (WCAG 2.5.7 pide una alternativa sin arrastre), en móvil choca con el scroll y
+  con la tarjeta que ya es un botón, y es un gesto que no se descubre solo. Si
+  `days_swapped` muestra uso real, el siguiente paso es añadirlo **sólo en escritorio**,
+  donde la semana entera cabe en pantalla.
+- **Sólo dentro de la misma semana.** Entre semanas serían dos filas de
+  `weekly_menus` que escribir y deshacer a la vez.
+
+Analítica: `days_swapped` (`surface`) y `days_swap_undone`.
+
 ## Verificación
 
-Ya hay tests en el repo: `npm test` (vitest), 99 repartidos entre `menuGenerator`,
-`householdRules`, `degradedMenu`, `weekStart` y `dayFormat`. Se escribieron para M1/M2,
+Ya hay tests en el repo: `npm test` (vitest), 103 repartidos entre `menuGenerator`,
+`householdRules`, `degradedMenu`, `weekStart`, `dayFormat` y `swapDays`. Se escribieron para M1/M2,
 para M10 y para M6.
 
 El resto se verifica levantando el dev server (`.claude/launch.json` tiene

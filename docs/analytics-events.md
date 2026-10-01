@@ -55,7 +55,7 @@ send failures.
 | `household_created` | — | `OnboardingScreen.tsx:139` |
 | `household_joined` | — | `OnboardingScreen.tsx:164` |
 | `household_setup_failed` | `mode` (`create` \| `join`), `reason` | `OnboardingScreen.tsx:148`, `:169` |
-| `catalog_seeded` | `dish_count` (dishes that were missing and got seeded) | `App.tsx:618` |
+| `catalog_seeded` | `dish_count` (dishes that were missing and got seeded) | `App.tsx:663` |
 
 The funnel for a new household is: `login_otp_requested` → `session_signed_in` →
 `household_created` (or `household_joined`) → `catalog_seeded` → `menu_generated`.
@@ -64,11 +64,11 @@ The funnel for a new household is: `login_otp_requested` → `session_signed_in`
 
 | Event | Properties | Where |
 |---|---|---|
-| `menu_generated` | `week_start`, `trigger` (`manual` \| `next_week` \| `auto_initial_load`) | `App.tsx:243`, `:351` |
-| `menu_degraded` | `unmet` (labels of the rules that could not be met, comma-separated; `rule_combination` when no single rule is to blame) | `App.tsx:172` |
+| `menu_generated` | `week_start`, `trigger` (`manual` \| `next_week` \| `auto_initial_load`) | `App.tsx:248`, `:356` |
+| `menu_degraded` | `unmet` (labels of the rules that could not be met, comma-separated; `rule_combination` when no single rule is to blame) | `App.tsx:177` |
 | `week_regenerated` | — | `FamilyView.tsx:72` |
-| `week_viewed` | `offset` (weeks relative to the current one: `-1`, `0`, `1`) | `App.tsx:450` |
-| `next_week_menu_viewed` | — | `App.tsx:460` |
+| `week_viewed` | `offset` (weeks relative to the current one: `-1`, `0`, `1`) | `App.tsx:455` |
+| `next_week_menu_viewed` | — | `App.tsx:465` |
 
 `menu_generated` with `trigger: 'auto_initial_load'` is the menu created automatically
 when the app opens with no stored week. Nobody chose it, so keep it apart when measuring
@@ -81,17 +81,24 @@ If it climbs as new households arrive, the problem is in the rules, not in the i
 
 | Event | Properties | Where |
 |---|---|---|
-| `day_editor_opened` | `surface` (`sheet` on mobile \| `panel` on desktop) | `App.tsx:817` |
-| `menu_item_edited` | `meal_type` (`lunch` \| `dinner`), `dish_slot` (`starter` \| `main` \| `single`) | `App.tsx:537` |
-| `day_format_changed` | `meal_type`, `action` (`add` \| `remove` a first course) | `App.tsx:546`, `:551` |
+| `day_editor_opened` | `surface` (`sheet` on mobile \| `panel` on desktop) | `App.tsx:862` |
+| `menu_item_edited` | `meal_type` (`lunch` \| `dinner`), `dish_slot` (`starter` \| `main` \| `single`) | `App.tsx:546` |
+| `day_format_changed` | `meal_type`, `action` (`add` \| `remove` a first course) | `App.tsx:555`, `:560` |
+| `days_swapped` | `surface` (`sheet` on mobile and tablet \| `panel` on desktop) | `App.tsx:567` |
+| `days_swap_undone` | — | `App.tsx:577` |
+
+`days_swapped` is the whole day (lunch and dinner) traded with another day of the same
+week, from "⇄ Intercambiar con otro día" in the day editor. `days_swap_undone` is the
+"Deshacer" of the toast that follows it: read the two together, since a high undo rate
+means the swap is being hit by mistake or does something people did not expect.
 
 ## Dish catalog
 
 | Event | Properties | Where |
 |---|---|---|
-| `dish_added` | `category` (`starter` \| `main` \| `single`) | `App.tsx:560`, `:582` |
-| `dish_edited` | `category` | `App.tsx:576` |
-| `dish_deleted` | — | `App.tsx:599` |
+| `dish_added` | `category` (`starter` \| `main` \| `single`) | `App.tsx:605`, `:627` |
+| `dish_edited` | `category` | `App.tsx:621` |
+| `dish_deleted` | — | `App.tsx:644` |
 
 `dish_added` fires from two places: creating a dish from the catalog, and saving an
 improvised one while editing the menu ("¿Lo guardamos?").

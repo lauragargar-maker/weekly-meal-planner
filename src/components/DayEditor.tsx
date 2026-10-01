@@ -12,6 +12,7 @@ import {
 import { HouseholdRules } from '../lib/householdRules'
 import AddDishModal from './AddDishModal'
 import DishPicker from './DishPicker'
+import SwapDayPicker, { SwapCandidate } from './SwapDayPicker'
 
 interface DayEditorProps {
   /** ISO date of the day being edited. */
@@ -27,6 +28,10 @@ interface DayEditorProps {
   onAddFirstCourse: (mealType: MealType, dishName: string) => void
   onRemoveFirstCourse: (mealType: MealType) => void
   onAddNewDish: (dishData: NewDishIdea) => void
+  /** The other days of the week, for "Intercambiar con otro día". */
+  swapCandidates: SwapCandidate[]
+  /** Swaps this whole day with `otherDay`. The caller closes the editor. */
+  onSwapWith: (otherDay: string) => void
 }
 
 /** What the picker is being opened for. `add` has no dish to replace yet. */
@@ -69,8 +74,12 @@ export default function DayEditor({
   onAddFirstCourse,
   onRemoveFirstCourse,
   onAddNewDish,
+  swapCandidates,
+  onSwapWith,
 }: DayEditorProps) {
   const [pick, setPick] = useState<PickTarget | null>(null)
+  // Step 2 is either the dish picker or the day picker, never both.
+  const [swapping, setSwapping] = useState(false)
   const [addingDish, setAddingDish] = useState(false)
   // Which way the step slid in, so ‹ undoes the movement that brought you here.
   const [goingBack, setGoingBack] = useState(false)
@@ -86,6 +95,7 @@ export default function DayEditor({
   // being picked belonged to the day that just left.
   useEffect(() => {
     setPick(null)
+    setSwapping(false)
     setGoingBack(false)
   }, [day])
 
@@ -161,6 +171,12 @@ export default function DayEditor({
   const backToDay = () => {
     setGoingBack(true)
     setPick(null)
+    setSwapping(false)
+  }
+
+  const openSwap = () => {
+    setGoingBack(false)
+    setSwapping(true)
   }
 
   const commitPick = (dishName: string) => {
@@ -285,6 +301,13 @@ export default function DayEditor({
     <div key="day" className={stepClass}>
       {mealBlock('lunch')}
       {mealBlock('dinner')}
+      {/* Below the meals, because it acts on both of them at once: it is the
+          day that moves, not a dish. */}
+      {swapCandidates.length > 0 && (
+        <button type="button" onClick={openSwap} className="btn-secondary mt-5 w-full text-tinta-900">
+          <span aria-hidden="true">⇄</span> Intercambiar con otro día
+        </button>
+      )}
       <p className="mt-5 rounded-[16px] border-2 border-dashed border-crema-300 px-3.5 py-3 text-[13px] font-bold font-sans leading-[1.45] text-tinta-500">
         Añadir o quitar el primero cambia <strong className="font-extrabold">sólo este día</strong>.
         Tus reglas de la casa siguen igual.
@@ -325,7 +348,20 @@ export default function DayEditor({
     </div>
   )
 
-  const body = pick ? pickStep : dayStep
+  const swapStep = swapping && (
+    <div key="swap" className={stepClass}>
+      <SwapDayPicker
+        dayTitle={dayTitle}
+        candidates={swapCandidates}
+        onPick={onSwapWith}
+        onBack={backToDay}
+        onClose={isSheet ? onClose : undefined}
+      />
+    </div>
+  )
+
+  const body = pick ? pickStep : swapStep || dayStep
+  const onDayStep = !pick && !swapping
 
   const newDishModal = addingDish && pick && (
     <AddDishModal
@@ -357,7 +393,11 @@ export default function DayEditor({
                 {dayTitle}
               </p>
               <p className="text-xs font-bold font-sans text-crema-400">
-                {pick ? 'Elige el plato que quieres poner' : 'Toca el plato que quieras cambiar'}
+                {pick
+                  ? 'Elige el plato que quieres poner'
+                  : swapping
+                    ? 'Elige el día que quieres poner en su lugar'
+                    : 'Toca el plato que quieras cambiar'}
               </p>
             </div>
             <button
@@ -417,7 +457,7 @@ export default function DayEditor({
             <div className="mx-auto h-[5px] w-11 rounded-full bg-crema-300" aria-hidden="true" />
           </div>
 
-          {!pick && (
+          {onDayStep && (
             <div className="flex flex-none items-start justify-between gap-3 pb-1">
               <div className="min-w-0">
                 <h2 className="text-[22px] font-extrabold leading-tight">{dayTitle}</h2>
@@ -443,16 +483,16 @@ export default function DayEditor({
           {/* Finishing needs a button that says so. The ✕ closes the sheet, but
               "I am done with this day" is a decision, and the ✕ reads as
               "discard" — which is the wrong story here, where every change is
-              already saved. Step 2 has no equivalent: there, choosing a dish is
+              already saved. Step 2 has no equivalent: there, choosing a dish (or a day) is
               what ends the step, and ‹ goes back. */}
-          {!pick && (
+          {onDayStep && (
             <button type="button" onClick={onClose} className="btn-primary mt-3 w-full flex-none">
               ✓ Hecho
             </button>
           )}
 
           <div className="mt-3">
-            <StepDots step={pick ? 2 : 1} />
+            <StepDots step={onDayStep ? 1 : 2} />
           </div>
         </div>
       </div>
