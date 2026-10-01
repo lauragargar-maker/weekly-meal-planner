@@ -1,10 +1,12 @@
 import { ReactNode, useEffect, useRef, useState } from 'react'
 import { WeeklyMenu, DishIdea, NewDishIdea } from '../types'
 import { formatDayName } from '../utils/menuGenerator'
-import { CourseSlot, MealType, coursesOf } from '../lib/dayFormat'
+import { CourseSlot, MealType, dishesOf } from '../lib/dayFormat'
 import { HouseholdRules } from '../lib/householdRules'
 import { useMediaQuery } from '../lib/useMediaQuery'
 import DayEditor from './DayEditor'
+import { SwapCandidate } from './SwapDayPicker'
+import CompactMeals from './CompactMeals'
 
 interface MenuAgendaViewProps {
   menu: WeeklyMenu
@@ -25,6 +27,13 @@ interface MenuAgendaViewProps {
   onOpenDay: (dayISO: string | null) => void
   /** For analytics: in which container the day was opened. */
   onDayOpened?: (dayISO: string, surface: 'sheet' | 'panel') => void
+  /** Swaps two whole days; `surface` is for analytics. */
+  onSwapDays: (dayA: string, dayB: string, surface: 'sheet' | 'panel') => void
+  /**
+   * Days whose cards stand out for a moment, right after a swap or its undo, so
+   * the eye can find where things went. Owned by `App`, which holds the undo.
+   */
+  highlightDays: string[]
 }
 
 type MenuItem = WeeklyMenu['menu_items'][0]
@@ -44,12 +53,8 @@ const dayNumber = (iso: string): string => String(new Date(iso).getDate())
 
 const dayAbbr = (iso: string): string => DAY_ABBR[new Date(iso).getDay()]
 
-/** Dish names of a meal, in course order. */
-const dishesOf = (item: MenuItem | null): string[] =>
-  coursesOf(item).map(course => course.dish)
-
 /*
- * These five live at module scope on purpose. Declared inside the component,
+ * These four live at module scope on purpose. Declared inside the component,
  * each render would create a new component type, and React would throw away the
  * DOM node and build a new one — which silently breaks returning the focus to
  * the day card that opened the editor, because by then that node is detached.
@@ -89,37 +94,6 @@ const MealBlock = ({ item, mealType, circle, nameClass }: { item: MenuItem | nul
   )
 }
 
-/** One line per meal, courses joined with "·". Used on secondary cards. */
-const CompactMeals = ({ lunch, dinner }: { lunch: MenuItem | null; dinner: MenuItem | null }) => {
-  const lunchDishes = dishesOf(lunch)
-  const dinnerDishes = dishesOf(dinner)
-  return (
-    <div className="flex min-w-0 flex-col gap-1 text-sm font-bold font-sans leading-[1.3]">
-      {/* The sun and the moon are the only thing telling lunch from dinner here,
-          and they are decorative: now that the card is a button, its contents are
-          read out, so the distinction has to exist in text too. */}
-      {lunchDishes.length > 0 && (
-        <p className="flex gap-2">
-          <span className="flex-none text-amarillo-500" aria-hidden="true">☀</span>
-          <span className="text-tinta-900">
-            <span className="sr-only">Comida: </span>
-            {lunchDishes.join(' · ')}
-          </span>
-        </p>
-      )}
-      {dinnerDishes.length > 0 && (
-        <p className="flex gap-2">
-          <span className="flex-none text-verde-500" aria-hidden="true">☾</span>
-          <span className="text-tinta-500">
-            <span className="sr-only">Cena: </span>
-            {dinnerDishes.join(' · ')}
-          </span>
-        </p>
-      )}
-    </div>
-  )
-}
-
 /**
  * The one edit affordance, on every day alike (§1). It is a signal, not the
  * target: the whole card is the button, which is what the two interviewees
@@ -142,18 +116,28 @@ const Pencil = ({ strong }: { strong?: boolean }) => (
  */
 const DayCard = ({
   day,
-  className,
+  className: baseClassName,
   canEdit,
   onOpen,
+  highlighted,
   children,
 }: {
   day: string
   className: string
   canEdit: boolean
   onOpen: (day: string) => void
+  /** Just swapped: a thick yellow outline, the same yellow as the HOY badge. */
+  highlighted: boolean
   children: ReactNode
-}) =>
-  canEdit ? (
+}) => {
+  // An outline rather than a ring, and forced: the card that opened the editor
+  // gets the focus back at the same moment, and its focus ring would otherwise
+  // paint over the yellow. A dimmed past day is shown at full strength too, or
+  // the outline would fade with it.
+  const className = highlighted
+    ? `${baseClassName} !opacity-100 !outline !outline-4 !outline-offset-2 !outline-amarillo-500`
+    : baseClassName
+  return canEdit ? (
     <button
       type="button"
       onClick={() => onOpen(day)}
@@ -169,6 +153,7 @@ const DayCard = ({
   ) : (
     <div className={className}>{children}</div>
   )
+}
 
 export default function MenuAgendaView({
   menu,
@@ -182,6 +167,8 @@ export default function MenuAgendaView({
   openDay,
   onOpenDay,
   onDayOpened,
+  onSwapDays,
+  highlightDays,
 }: MenuAgendaViewProps) {
   // The day whose card should get the focus back, once the week has re-rendered.
   const [refocusDay, setRefocusDay] = useState<string | null>(null)
@@ -269,6 +256,7 @@ export default function MenuAgendaView({
           day={day}
           canEdit={canEdit}
           onOpen={openEditor}
+          highlighted={highlightDays.includes(day)}
           className={`h-full border-[3px] border-tinta-900 bg-white ${
             desktop ? 'rounded-[26px] p-6 shadow-[7px_7px_0_#f0e2c8]' : 'rounded-hoy p-[18px] shadow-pop'
           }`}
@@ -302,6 +290,7 @@ export default function MenuAgendaView({
         day={day}
         canEdit={canEdit}
         onOpen={openEditor}
+        highlighted={highlightDays.includes(day)}
         className={`flex items-center gap-3 rounded-[18px] border-2 border-crema-300 bg-white py-3 px-3.5 active:border-[3px] active:border-tinta-900 ${
           isPast(day) ? 'opacity-[0.55]' : ''
         }`}
@@ -327,6 +316,7 @@ export default function MenuAgendaView({
         day={day}
         canEdit={canEdit}
         onOpen={openEditor}
+        highlighted={highlightDays.includes(day)}
         className={`rounded-[20px] border-2 border-crema-300 bg-white p-4 hover:-translate-y-0.5 hover:shadow-pop ${
           isPast(day) ? 'opacity-[0.55]' : ''
         }`}
@@ -353,6 +343,7 @@ export default function MenuAgendaView({
         day={day}
         canEdit={canEdit}
         onOpen={openEditor}
+        highlighted={highlightDays.includes(day)}
         className="rounded-card border-2 border-crema-300 bg-white p-5 hover:-translate-y-0.5 hover:shadow-pop"
       >
         {/* One line, like every other card: the day name and its number are read
@@ -385,6 +376,7 @@ export default function MenuAgendaView({
         day={day}
         canEdit={canEdit}
         onOpen={openEditor}
+        highlighted={highlightDays.includes(day)}
         className={`rounded-[18px] p-3.5 ${
           isOpen
             ? 'border-[3px] border-tinta-900 bg-crema-100 shadow-pop-sm'
@@ -411,6 +403,11 @@ export default function MenuAgendaView({
     )
   }
 
+  const swapCandidatesFor = (day: string): SwapCandidate[] =>
+    sortedDays
+      .filter(other => other !== day)
+      .map(other => ({ day: other, ...itemsByDay[other], past: isPast(other) }))
+
   const dayEditor = (surface: 'sheet' | 'panel') =>
     openDay && (
       <DayEditor
@@ -427,6 +424,13 @@ export default function MenuAgendaView({
         onAddFirstCourse={(mealType, dishName) => onAddFirstCourse(openDay, mealType, dishName)}
         onRemoveFirstCourse={(mealType) => onRemoveFirstCourse(openDay, mealType)}
         onAddNewDish={onAddNewDish}
+        swapCandidates={swapCandidatesFor(openDay)}
+        onSwapWith={(otherDay) => {
+          onSwapDays(openDay, otherDay, surface)
+          // Closing hands the focus back to the card of the day that was open,
+          // which now holds the other day's meals and is ringed with its pair.
+          closeEditor()
+        }}
       />
     )
 

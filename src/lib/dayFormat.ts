@@ -56,6 +56,10 @@ export const coursesOf = (item: MenuItem | null | undefined): DayCourse[] => {
   return []
 }
 
+/** Dish names of a meal, in course order. */
+export const dishesOf = (item: MenuItem | null | undefined): string[] =>
+  coursesOf(item).map(course => course.dish)
+
 /**
  * Which of the two format controls that meal gets, if any (§3: only ever one).
  *
