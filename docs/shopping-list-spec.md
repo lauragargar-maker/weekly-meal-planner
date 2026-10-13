@@ -21,6 +21,8 @@ bloquea la implementación: se puede ajustar en diseño o en la revisión de cad
 | D9 | Periodo preseleccionado | **5 días**: de mañana a mañana + 4. |
 | D10 | Granularidad del selector | **Días completos**: la comida y la cena del día entran juntas. |
 | D11 | Artículos quitados a mano | **Vuelven a salir al regenerar** la lista. Recordarlos queda en el backlog (§12). |
+| D12 | Fin de la lista | La lista se **cierra** sola cuando **han pasado todos sus días** o cuando **está todo comprado**. Una lista cerrada deja de ser la que abre el botón de Semana (§5.10). |
+| D13 | Botón para otra lista | Se llama **"Elegir otros días"** (antes "Nueva lista"). |
 
 ## 1. Alcance
 
@@ -39,7 +41,7 @@ bloquea la implementación: se puede ajustar en diseño o en la revisión de cad
 - Cantidades, unidades y raciones.
 - Enlace público para personas sin cuenta.
 - Uso sin conexión: marcar checks sin red no está soportado (§7.6).
-- Histórico de listas (solo existe una lista activa por hogar).
+- Histórico de listas (cada hogar tiene una sola lista, en curso o cerrada; §5.10).
 - Gestión independiente del catálogo de ingredientes: no hay pantalla propia para renombrar, fusionar o borrar ingredientes.
 - Plurales y sinónimos: "cebolla" y "cebollas" son ingredientes distintos. El autocompletado lo mitiga.
 - Exportar a apps concretas (Bring!, Google Keep…). Se cubre con copiar y compartir texto.
@@ -128,12 +130,12 @@ Como en `INGREDIENTS`, una sección nueva va **al final** de la lista, nunca en 
 
 `toKey(name)`: `trim` → colapsar espacios → `toLowerCase('es')` → quitar diacríticos (NFD y eliminar `\p{M}`), **conservando la ñ**. La usan el catálogo de ingredientes, la búsqueda de platos por nombre (§4.3) y la fusión de artículos. Va en `src/lib/` con tests unitarios.
 
-### 3.7 `shopping_lists`: la lista activa del hogar
+### 3.7 `shopping_lists`: la lista del hogar
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | UUID PK | |
-| `household_id` | UUID NOT NULL UNIQUE | **Una lista activa por hogar.** Una lista nueva sustituye a la anterior (§5.6). |
+| `household_id` | UUID NOT NULL UNIQUE | **Una lista por hogar**, en curso o cerrada (§5.10). Una lista nueva sustituye a la anterior (§5.6). |
 | `days` | DATE[] NOT NULL | Días seleccionados que **sí** tenían menú y entraron en la lista. |
 | `skipped_days` | DATE[] NOT NULL DEFAULT '{}' | Días seleccionados sin menú, para el aviso. |
 | `missing_dishes` | TEXT[] NOT NULL DEFAULT '{}' | Platos del rango sin ingredientes o no encontrados (§4.3), para el aviso. |
@@ -212,9 +214,9 @@ Migrar `MenuItem` a IDs queda fuera de la v1.
 En **Semana** hay un botón **"Lista de la compra"** con icono de carrito.
 
 - En móvil va en la cabecera de la pantalla, junto a `WeekNav`. En escritorio va en la cabecera, junto a los botones existentes. **[propuesta: ubicación exacta en diseño]**
-- **Si el hogar no tiene lista activa**, el botón abre el **selector de días** (§5.2).
-- **Si ya tiene una**, abre **la lista** (§5.5). Dentro de la lista, "Nueva lista" lleva al selector.
-- El botón muestra un contador con los artículos pendientes cuando hay una lista activa con artículos sin marcar **[propuesta]**.
+- **Si el hogar no tiene lista, o la que tiene está cerrada** (§5.10), el botón abre el **selector de días** (§5.2).
+- **Si tiene una lista en curso**, abre **la lista** (§5.5). Dentro de la lista, "Elegir otros días" lleva al selector.
+- El botón muestra un **contador con los artículos pendientes** solo cuando hay una lista en curso. Con la lista cerrada, o sin lista, no hay contador.
 
 La lista es una vista a pantalla completa por encima de Semana: no es un cuarto destino de la navegación. "Atrás" vuelve a Semana.
 
@@ -227,6 +229,7 @@ La lista es una vista a pantalla completa por encima de Semana: no es un cuarto 
 - **Días sin menú**: se pueden marcar, pero llevan la etiqueta *"Sin menú"*. Para pintar el selector se cargan los `weekly_menus` de la semana actual y de la siguiente **solo en lectura**. Abrir el selector **nunca genera** un menú (D3).
 - Atajos: "Próximos 5 días" (vuelve a la preselección), "Solo esta semana" y "Ninguno".
 - Botón principal: **"Generar lista"**. Se deshabilita si ningún día marcado tiene menú.
+- **Lista anterior**: si el hogar tiene una lista cerrada, bajo el título aparece el enlace *"Ver la lista anterior ({rango})"*, que la abre tal como quedó (§5.10).
 - **Aviso de días sin menú (D3).** Si hay días marcados sin menú, encima del botón aparece:
   > *"{n} días no tienen menú planificado y no entrarán en la lista: {lista de días}."*
 
@@ -269,8 +272,9 @@ Es lógica pura y va en `src/lib/shoppingList.ts` con tests unitarios: fusión, 
 **Cabecera**
 - Título "Lista de la compra" y subtítulo con el rango: *"mar 13 – sáb 17 oct · 5 días"*.
 - *"Generada por {nombre} {hace 2 h}"* **[propuesta]**.
+- Si la lista está **cerrada**, debajo de la cabecera aparece una tarjeta con el motivo y el botón principal **"Elegir otros días"** (§5.10).
 
-**Avisos, encima de la lista, cada uno descartable**
+**Avisos, encima de la lista, cada uno descartable.** En una lista cerrada no se muestra ninguno.
 - **Lista desactualizada** (D4, §5.7):
   > *"El menú ha cambiado desde que hiciste esta lista."*
 
@@ -288,7 +292,7 @@ Es lógica pura y va en `src/lib/shoppingList.ts` con tests unitarios: fusión, 
 - **Acciones por artículo**, en un menú "⋯" o deslizando:
   - **Quitar de la lista**: lo borra de esta lista, para lo que ya hay en casa.
   - **"Siempre lo tengo en casa"**: lo quita de la lista **y** marca el ingrediente como básico (`is_staple = true`), con el aviso *"No volverá a salir en tus listas. Puedes cambiarlo en la ficha de cualquier plato."* Solo aparece en artículos con `ingredient_id`.
-- Si todos los artículos están marcados, aparece el estado *"¡Todo comprado!"* **[propuesta]**.
+- Si todos los artículos están marcados, la lista se cierra y aparece la tarjeta *"¡Todo comprado!"* (§5.10).
 
 **Añadir a mano (D5)**
 - Hay un campo fijo **"Añadir artículo…"** al principio de la lista, con autocompletado sobre el catálogo de ingredientes del hogar.
@@ -300,19 +304,19 @@ Es lógica pura y va en `src/lib/shoppingList.ts` con tests unitarios: fusión, 
 **Acciones de la lista**, en la cabecera o en un menú "⋯":
 - **Copiar**: copia el texto de §5.8 al portapapeles y muestra la confirmación *"Lista copiada"*.
 - **Compartir**: usa `navigator.share({ text })` con el mismo texto. Si no hay soporte, copia (igual que `FamilyView.shareCode`).
-- **Nueva lista**: abre el selector (§5.2) y después pide confirmación (§5.6).
+- **Elegir otros días**: abre el selector (§5.2). Si la lista actual está en curso, al generar pide confirmación (§5.6).
 - **Borrar marcados**: elimina los artículos ya comprados **[propuesta]**.
 
-### 5.6 Regenerar o crear una lista nueva
+### 5.6 Regenerar o elegir otros días
 
-Las dos acciones sustituyen la lista activa (`household_id` es UNIQUE).
+Las dos acciones sustituyen la lista del hogar (`household_id` es UNIQUE).
 
-- **Regenerar** (desde el aviso de lista desactualizada) usa **los mismos días** que la lista actual. **Nueva lista** usa los días del selector.
-- Confirmación: *"Se sustituirá la lista actual. Conservaremos lo que ya has marcado y lo que añadiste a mano."*
-- Al sustituir:
+- **Regenerar** (desde el aviso de lista desactualizada, solo en una lista en curso) usa **los mismos días** que la lista actual. **Elegir otros días** usa los días del selector.
+- **Si la lista actual está en curso**, se pide confirmación: *"Se sustituirá la lista actual. Conservaremos lo que ya has marcado y lo que añadiste a mano."* Al sustituir:
   - Los artículos **a mano** se mantienen tal cual.
   - Si un artículo nuevo ya existía marcado en la lista anterior (mismo `ingredient_id`, o mismo `name_key` si no tiene), **se mantiene marcado**.
   - Los artículos quitados a mano ("Quitar de la lista") **vuelven a salir** al regenerar (D11). Recordarlos está en el backlog (§12).
+- **Si la lista actual está cerrada**, se sustituye **sin confirmación** y la nueva empieza limpia: **no se hereda ninguna marca**, porque lo comprado para la semana pasada no está comprado para esta. Solo pasan a la nueva lista los **artículos a mano que quedaron sin marcar** (lo que se apuntó y no se llegó a comprar).
 
 ### 5.7 Detección de lista desactualizada (D4)
 
@@ -353,6 +357,24 @@ OTROS
 - Un check se aplica primero en pantalla (actualización optimista) y después se guarda. Si el guardado falla, se revierte y aparece el aviso *"No se pudo guardar. Revisa la conexión."*
 - Si dos personas marcan a la vez, gana el último en guardar. No hay más resolución de conflictos.
 - Si otra persona sustituye la lista mientras la estás viendo, la vista se recarga con la nueva y muestra el aviso *"{nombre} ha hecho una lista nueva"*.
+
+### 5.10 Ciclo de vida (D12)
+
+La lista del hogar está siempre en uno de estos estados. Ninguno se guarda en la base de datos: se **calculan** al pintar, a partir de `days` y de los artículos.
+
+| Estado | Cuándo | Botón de Semana | Al abrir la lista |
+|---|---|---|---|
+| **Sin lista** | El hogar nunca ha generado una. | Sin contador. Abre el selector. | — |
+| **En curso** | Hay lista, alguno de sus días es hoy o posterior, y queda al menos un artículo sin marcar. También una lista sin ningún artículo. | Contador de pendientes. Abre la lista. | Lista normal, con sus avisos. |
+| **Cerrada: todo comprado** | Tiene al menos un artículo y están todos marcados. | Sin contador. Abre el selector. | Tarjeta *"¡Todo comprado! Cuando quieras, haz la siguiente."* + "Elegir otros días". |
+| **Cerrada: caducada** | Ha pasado el último día de `days` (comparando fechas locales), aunque queden artículos sin marcar. | Sin contador. Abre el selector. | Tarjeta *"Esta lista era para {rango} y esos días ya han pasado."* + "Elegir otros días". |
+
+Reglas:
+
+- **Una lista cerrada se puede seguir consultando y tocando**: desde el enlace "Ver la lista anterior" del selector se abre tal como quedó, y se pueden marcar, desmarcar y copiar artículos. No aparecen los avisos de lista desactualizada, días sin menú o platos sin información.
+- **"Todo comprado" se puede deshacer**: si alguien desmarca un artículo de una lista que no ha caducado, vuelve a estar en curso. Una lista caducada no vuelve a estar en curso.
+- **Cierre en directo**: con la lista abierta, al marcar el último artículo aparece la tarjeta de "¡Todo comprado!" en ese momento, también para los demás miembros que la tengan abierta (§5.9). La lista no se cierra ni se borra sola en la base de datos: queda guardada hasta que se sustituye.
+- **Sustitución**: una lista cerrada se sustituye sin confirmación y sin heredar marcas (§5.6).
 
 ## 6. Semilla: ingredientes y receta del catálogo por defecto
 
@@ -417,7 +439,8 @@ Se añaden eventos a `docs/analytics-events.md`, en una sección nueva "Lista de
 | Evento | Propiedades |
 |---|---|
 | `shopping_list_opened` | `has_list` (bool) |
-| `shopping_list_generated` | `trigger` (`new` \| `regenerate`), `days_selected`, `days_included`, `days_skipped`, `item_count`, `missing_dish_count` |
+| `shopping_list_generated` | `trigger` (`new` \| `regenerate`), `previous` (`none` \| `active` \| `all_checked` \| `expired`), `days_selected`, `days_included`, `days_skipped`, `item_count`, `missing_dish_count` |
+| `shopping_list_completed` | `item_count`, `days_left` (días de la lista que aún no habían pasado) — se envía al marcar el último artículo |
 | `shopping_list_stale_shown` | — |
 | `shopping_item_checked` | `checked` (bool), `origin` |
 | `shopping_item_added_manually` | `from_catalog` (bool) |
@@ -447,7 +470,10 @@ Se añaden eventos a `docs/analytics-events.md`, en una sección nueva "Lista de
 11. Si se cambia un plato de un día incluido después de generar la lista, el aviso de lista desactualizada aparece y la lista no cambia hasta pulsar "Regenerar".
 12. Copiar genera el texto de §5.8 con solo los artículos pendientes, y Compartir abre la hoja del sistema en móvil.
 13. "Siempre lo tengo en casa" sobre un artículo hace que ese ingrediente deje de salir en las listas siguientes y aparezca como básico en la ficha.
-14. `npm run lint`, `npm test` y el build pasan. Hay tests nuevos para `toKey`, el cálculo de la lista (§5.4), la huella (§5.7) y la completitud de la semilla (§6.1).
+14. El día después del último día de la lista, el botón de Semana no muestra contador y abre el selector, que ofrece "Ver la lista anterior".
+15. Al marcar el último artículo aparece "¡Todo comprado!" y el botón de Semana pierde el contador. Al desmarcar uno, si la lista no ha caducado, vuelve a estar en curso.
+16. Al generar una lista cuando la anterior está cerrada, no se pide confirmación, ningún artículo sale marcado y solo pasan los artículos a mano que quedaron sin marcar.
+17. `npm run lint`, `npm test` y el build pasan. Hay tests nuevos para `toKey`, el cálculo de la lista (§5.4), la huella (§5.7), el estado de la lista (§5.10) y la completitud de la semilla (§6.1).
 
 ## 10. Plan de entrega sugerido
 
