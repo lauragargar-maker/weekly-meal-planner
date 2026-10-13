@@ -1,8 +1,8 @@
 # Lista de la compra, ingredientes y receta recomendada
 
 Especificación funcional y técnica de la v1. Recoge las decisiones tomadas con Laura el
-2026-10-12 y las que se toman aquí por defecto. Estas últimas van marcadas con
-**[propuesta]** y conviene validarlas antes de empezar a construir.
+2026-10-12 y el 2026-10-13. Lo que sigue marcado con **[propuesta]** es de detalle y no
+bloquea la implementación: se puede ajustar en diseño o en la revisión de cada PR.
 
 ---
 
@@ -16,6 +16,11 @@ Especificación funcional y técnica de la v1. Recoge las decisiones tomadas con
 | D4 | Menú cambiado después de generar la lista | La lista **se queda congelada** y aparece un **aviso** con la opción de regenerarla. |
 | D5 | Artículos a mano | **Sí**: se pueden añadir artículos que no salen de ningún plato. |
 | D6 | Orden de la lista | **Agrupada por sección del súper.** |
+| D7 | Ficha del plato | Al tocar un plato se abre una **ficha de consulta**, con un botón **"Editar"** que lleva al editor. |
+| D8 | Básicos por defecto | La lista de §6.1, **con ajo y cebolla incluidos** como básicos. |
+| D9 | Periodo preseleccionado | **5 días**: de mañana a mañana + 4. |
+| D10 | Granularidad del selector | **Días completos**: la comida y la cena del día entran juntas. |
+| D11 | Artículos quitados a mano | **Vuelven a salir al regenerar** la lista. Recordarlos queda en el backlog (§12). |
 
 ## 1. Alcance
 
@@ -163,7 +168,7 @@ Un solo archivo, `supabase/migrations/2026MMDD000000_shopping_list.sql`, que cre
 
 ### 4.1 Ficha del plato (consulta)
 
-Al tocar un plato en **Platos** se abre su **ficha**. Hoy ese toque abre directamente el editor. **[propuesta]** La ficha es de solo lectura y tiene un botón "Editar" que abre el editor actual ampliado. La ficha muestra:
+Al tocar un plato en **Platos** se abre su **ficha**. Hoy ese toque abre directamente el editor. La ficha es de solo lectura y tiene un botón "Editar" que abre el editor actual ampliado (D7). La ficha muestra:
 
 1. El nombre y los datos actuales (tipo, comida/cena, día).
 2. **Ingredientes**: la lista completa, en el orden del plato. Los básicos van al final, en gris y con la etiqueta "Básico de casa".
@@ -179,7 +184,7 @@ El editor de plato (`AddDishModal`) gana dos bloques:
 **Ingredientes**
 - Un campo con autocompletado sobre el catálogo del hogar (`ingredients`), buscando por `name_key`. Pulsar Intro o elegir una sugerencia añade el ingrediente como chip.
 - Si el texto no existe en el catálogo, se crea el ingrediente al guardar el plato. Su sección se **infiere** de la tabla de ingredientes semilla (§6) si coincide por `name_key`; si no, se usa `other`. El tipo por defecto es **de compra**.
-- Cada chip se puede quitar y reordenar arrastrando **[propuesta: el reorden puede esperar a v1.1 si complica]**.
+- Cada chip se puede quitar. Si se puede reordenar arrastrando está pendiente (§11).
 - Al tocar un chip se abre un pequeño menú con:
   - Sección: selector.
   - "Básico de casa (no lo añadas a la lista)": interruptor.
@@ -216,11 +221,11 @@ La lista es una vista a pantalla completa por encima de Semana: no es un cuarto 
 ### 5.2 Selector de días
 
 - **Días que se pueden elegir**: desde **hoy** hasta el **domingo de la semana siguiente**, que es hasta donde llega la navegación (`WEEK_RANGE.max = 1`). Los días pasados no aparecen.
-- **Preselección**: los **7 días que empiezan mañana**, de mañana a mañana + 6. Hoy aparece, pero sin marcar. Por ejemplo, el lunes 12 se preseleccionan del martes 13 al lunes 19 ambos incluidos. Esa preselección cabe siempre dentro del rango elegible.
-- La granularidad es **por día**: la comida y la cena del día entran juntas, con todos sus platos (primero, segundo o único). **[propuesta: elegir comida o cena por separado no entra en la v1]**
+- **Preselección**: los **5 días que empiezan mañana**, de mañana a mañana + 4 (D9). Hoy aparece, pero sin marcar. Por ejemplo, el lunes 12 se preseleccionan del martes 13 al sábado 17 ambos incluidos. Esa preselección cabe siempre dentro del rango elegible.
+- La granularidad es **por día** (D10): la comida y la cena del día entran juntas, con todos sus platos (primero, segundo o único). Elegir comida o cena por separado no entra en la v1.
 - Cada día muestra su fecha ("mar 13") y los platos planificados en pequeño (reutilizando `CompactMeals`).
 - **Días sin menú**: se pueden marcar, pero llevan la etiqueta *"Sin menú"*. Para pintar el selector se cargan los `weekly_menus` de la semana actual y de la siguiente **solo en lectura**. Abrir el selector **nunca genera** un menú (D3).
-- Atajos: "Próximos 7 días" (vuelve a la preselección), "Solo esta semana" y "Ninguno".
+- Atajos: "Próximos 5 días" (vuelve a la preselección), "Solo esta semana" y "Ninguno".
 - Botón principal: **"Generar lista"**. Se deshabilita si ningún día marcado tiene menú.
 - **Aviso de días sin menú (D3).** Si hay días marcados sin menú, encima del botón aparece:
   > *"{n} días no tienen menú planificado y no entrarán en la lista: {lista de días}."*
@@ -262,7 +267,7 @@ Es lógica pura y va en `src/lib/shoppingList.ts` con tests unitarios: fusión, 
 ### 5.5 Pantalla de la lista
 
 **Cabecera**
-- Título "Lista de la compra" y subtítulo con el rango: *"mar 13 – lun 19 oct · 6 días"*.
+- Título "Lista de la compra" y subtítulo con el rango: *"mar 13 – sáb 17 oct · 5 días"*.
 - *"Generada por {nombre} {hace 2 h}"* **[propuesta]**.
 
 **Avisos, encima de la lista, cada uno descartable**
@@ -307,7 +312,7 @@ Las dos acciones sustituyen la lista activa (`household_id` es UNIQUE).
 - Al sustituir:
   - Los artículos **a mano** se mantienen tal cual.
   - Si un artículo nuevo ya existía marcado en la lista anterior (mismo `ingredient_id`, o mismo `name_key` si no tiene), **se mantiene marcado**.
-  - Los artículos quitados a mano ("Quitar de la lista") **vuelven a salir** al regenerar. **[propuesta: aceptable en v1; recordar los quitados complica el modelo]**
+  - Los artículos quitados a mano ("Quitar de la lista") **vuelven a salir** al regenerar (D11). Recordarlos está en el backlog (§12).
 
 ### 5.7 Detección de lista desactualizada (D4)
 
@@ -325,7 +330,7 @@ La lista **nunca cambia sola**: solo cambia al pulsar "Regenerar".
 ### 5.8 Formato del texto copiado y compartido
 
 ```
-🛒 Lista de la compra · 13–19 oct
+🛒 Lista de la compra · 13–17 oct
 
 FRUTA Y VERDURA
 - Cebolla
@@ -357,7 +362,7 @@ Hay un archivo nuevo, `src/data/starterIngredients.ts`, con:
 - `STARTER_INGREDIENTS`: cada ingrediente semilla con su `name`, `section` y `is_staple` por defecto. Se usa también para inferir la sección de ingredientes nuevos (§4.2).
 - `STARTER_DISH_DETAILS`: un mapa de nombre de plato semilla → `{ ingredients: string[], recipe_url?: string }`, con una entrada para **cada uno** de los platos de `STARTER_CATALOG`. Un test comprueba que no falta ninguno y que cada ingrediente existe en `STARTER_INGREDIENTS`.
 
-**Básicos por defecto**: sal, pimienta negra, aceite de oliva, aceite de girasol, vinagre, azúcar, harina, pimentón, orégano, laurel, perejil seco, comino, nuez moscada y agua. **[propuesta: Laura lo revisa]** El ajo, la cebolla, los huevos, la leche y el pan son **de compra**.
+**Básicos por defecto** (D8): sal, pimienta negra, aceite de oliva, aceite de girasol, vinagre, azúcar, harina, pimentón, orégano, laurel, perejil seco, comino, nuez moscada, agua, **ajo y cebolla**. Los huevos, la leche y el pan son **de compra**. Cada hogar puede cambiar cualquiera de ellos (§4.2, §5.5).
 
 **Recetas**: preferentemente de Directo al Paladar, Bon Viveur o Cocina Abierta. Cada URL se comprueba a mano al redactar la semilla: que la página existe, que es la receta de ese plato y que tiene sentido para la familia. Si no hay una buena, el plato se queda sin `recipe_url`. Es mejor no tener enlace que tener uno equivocado. **Laura revisa la tabla completa antes de mergear.**
 
@@ -432,7 +437,7 @@ Se añaden eventos a `docs/analytics-events.md`, en una sección nueva "Lista de
 1. Un hogar nuevo tiene ingredientes en los 65 platos semilla nada más terminar el onboarding. Los platos que tienen receta muestran el enlace en la ficha.
 2. En un hogar existente, la primera carga después del despliegue rellena los platos semilla sin ingredientes y no toca los platos renombrados ni los editados.
 3. En la ficha de un plato se ven todos sus ingredientes, con los básicos diferenciados. Desde el editor se pueden añadir, quitar, cambiar de sección y marcar o desmarcar como básico.
-4. Al abrir el selector, sin tocar nada, están marcados de mañana a mañana + 6. Hoy aparece sin marcar y no hay días pasados.
+4. Al abrir el selector, sin tocar nada, están marcados de mañana a mañana + 4. Hoy aparece sin marcar y no hay días pasados.
 5. Con días sin menú en la selección, aparece el aviso con esos días. La lista se genera solo con los días con menú y no se genera ningún menú.
 6. La primera vez que faltan ingredientes en platos del rango, aparece el flujo guiado completo. Las siguientes veces aparece el aviso ligero. En ambos casos se puede generar la lista sin completar.
 7. Un ingrediente que aparece en tres platos sale una sola vez, con sus tres fuentes. Los básicos no salen.
@@ -455,11 +460,15 @@ Hay cuatro PRs, y cada una se puede desplegar por separado:
 
 ## 11. Pendiente de validar
 
-Estas son las decisiones marcadas **[propuesta]** que más afectan al trabajo:
+1. Si el **orden de los ingredientes** dentro de un plato se puede cambiar arrastrando en la v1, o si se quedan en el orden en que se añadieron (§4.2).
 
-1. Si la ficha es de solo lectura con un botón "Editar", o si se mantiene el editor directo (§4.1).
-2. La lista de básicos por defecto (§6.1).
-3. Si "7 días desde mañana" significa de mañana a mañana + 6 (§5.2).
-4. Si basta con elegir días completos, sin separar comida y cena (§5.2).
-5. Si es aceptable que un artículo quitado a mano vuelva a salir al regenerar (§5.6).
-6. Si el reorden de ingredientes entra en la v1 o puede esperar (§4.2).
+## 12. Backlog
+
+Ideas fuera de la v1, apuntadas para no perderlas:
+
+1. **Recordar los artículos quitados a mano al regenerar.** Hoy, si quitas "Cebolla" de la lista (porque ya la tienes) y regeneras, vuelve a salir (D11). Habría que guardar qué se quitó en la lista anterior y no volver a añadirlo.
+2. **Cantidades** y raciones por hogar (D1).
+3. **Enlace público** para compartir la lista con alguien sin cuenta (D2).
+4. **Uso sin conexión**: guardar los checks en local y sincronizar después (§7.6).
+5. **Elegir comida o cena por separado** en el selector de días (D10).
+6. **Guardar en el menú IDs de plato** en lugar de nombres (§4.3).
