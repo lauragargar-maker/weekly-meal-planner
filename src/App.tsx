@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { useAuth } from './lib/auth-context'
-import { WeeklyMenu, DishIdea, MenuItem, NewDishIdea, Household } from './types'
+import { WeeklyMenu, DishIdea, MenuItem, NewDishIdea, Household, ShoppingIngredient, DishIngredient } from './types'
 import MenuAgendaView from './components/MenuAgendaView'
 import CatalogView from './components/CatalogView'
 import FamilyView from './components/FamilyView'
@@ -23,6 +23,7 @@ import {
 } from './lib/dayFormat'
 import { describeDegradedMenu } from './lib/degradedMenu'
 import { swapDays } from './lib/swapDays'
+import { IngredientDraft, saveDishIngredients } from './lib/dishIngredients'
 import { STARTER_CATALOG } from './data/starterCatalog'
 import { identifyHousehold, trackEvent } from './lib/analytics'
 import { WEEK_RANGE, formatLocalDate, weekEndFor, weekKeyFor, weekStartFor } from './utils/weekStart'
@@ -69,6 +70,10 @@ function App({ household }: { household: Household }) {
   const [weekOffset, setWeekOffset] = useState(0)
   const [loadingWeek, setLoadingWeek] = useState<string | null>(null)
   const [dishIdeas, setDishIdeas] = useState<DishIdea[]>([])
+  // The household's shopping ingredients and which dish takes which
+  // (docs/shopping-list-spec.md §3.1–§3.2).
+  const [ingredientCatalog, setIngredientCatalog] = useState<ShoppingIngredient[]>([])
+  const [dishIngredients, setDishIngredients] = useState<DishIngredient[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<Destination>('agenda')
@@ -127,6 +132,30 @@ function App({ household }: { household: Household }) {
     const today = formatLocalDate(new Date())
     return days.find((day) => day === today) ?? days[0] ?? null
   }
+
+  /**
+   * Not part of the initial load on purpose: the week renders without them, and
+   * a failure here only leaves Platos without ingredients rather than taking
+   * the whole app down.
+   */
+  const loadShoppingIngredients = useCallback(async () => {
+    try {
+      const [catalogResult, linksResult] = await Promise.all([
+        supabase.from('ingredients').select('*').eq('household_id', householdId).order('name'),
+        supabase.from('dish_ingredients').select('*').eq('household_id', householdId),
+      ])
+      if (catalogResult.error) throw catalogResult.error
+      if (linksResult.error) throw linksResult.error
+      setIngredientCatalog((catalogResult.data as ShoppingIngredient[]) || [])
+      setDishIngredients((linksResult.data as DishIngredient[]) || [])
+    } catch (err) {
+      console.error('Error loading shopping ingredients:', err)
+    }
+  }, [householdId])
+
+  useEffect(() => {
+    loadShoppingIngredients()
+  }, [loadShoppingIngredients])
 
   const loadDishIdeas = useCallback(async () => {
     try {
@@ -609,8 +638,13 @@ function App({ household }: { household: Household }) {
     }
   }, [householdId])
 
-  const handleSaveDish = useCallback(async (dishData: NewDishIdea, dishId?: string) => {
+  const handleSaveDish = useCallback(async (
+    dishData: NewDishIdea,
+    dishId?: string,
+    ingredients?: IngredientDraft[]
+  ) => {
     try {
+      let savedId = dishId
       if (dishId) {
         const { error } = await supabase
           .from('dish_ideas')
@@ -620,18 +654,28 @@ function App({ household }: { household: Household }) {
         if (error) throw error
         trackEvent('dish_edited', { category: dishData.category })
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('dish_ideas')
           .insert({ ...dishData, household_id: householdId })
+          .select('id')
+          .single()
         if (error) throw error
+        savedId = (data as { id: string }).id
         trackEvent('dish_added', { category: dishData.category })
       }
-      await loadDishIdeas()
+      if (ingredients && savedId) {
+        await saveDishIngredients(supabase, householdId, savedId, ingredients, ingredientCatalog)
+        trackEvent('dish_ingredients_saved', {
+          ingredient_count: ingredients.length,
+          has_recipe: Boolean(dishData.recipe_url),
+        })
+      }
+      await Promise.all([loadDishIdeas(), loadShoppingIngredients()])
     } catch (err) {
       console.error('Error saving dish:', err)
       setError(err instanceof Error ? err.message : 'No se pudo guardar el plato')
     }
-  }, [householdId, loadDishIdeas])
+  }, [householdId, ingredientCatalog, loadDishIdeas, loadShoppingIngredients])
 
   const handleDeleteDish = useCallback(async (dishId: string) => {
     try {
@@ -820,6 +864,8 @@ function App({ household }: { household: Household }) {
             <CatalogView
               dishIdeas={dishIdeas}
               householdName={household.name}
+              ingredientCatalog={ingredientCatalog}
+              dishIngredients={dishIngredients}
               onSaveDish={handleSaveDish}
               onDeleteDish={handleDeleteDish}
             />

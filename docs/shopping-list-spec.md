@@ -162,9 +162,14 @@ Como en `INGREDIENTS`, una sección nueva va **al final** de la lista, nunca en 
 
 Las dos tablas de la lista se añaden a la publicación de realtime de Supabase.
 
-### 3.9 Migración
+### 3.9 Migraciones
 
-Un solo archivo, `supabase/migrations/2026MMDD000000_shopping_list.sql`, que crea las tablas, columnas, CHECKs, índices, RLS y la publicación de realtime, más una consulta de verificación comentada al final (convención de `supabase/migrations/README.md`). **No inserta datos**: la semilla se aplica desde el frontend (§6). Primero se ejecuta en dev y después en producción, **antes** de mergear el frontend.
+Dos archivos, uno por PR, para que cada migración llegue con el código que la usa:
+
+1. `supabase/migrations/20261014000000_dish_shopping_ingredients.sql` (PR 1): `ingredients`, `dish_ingredients`, `dish_ideas.recipe_url` y las dos columnas de `households` (§3.1–§3.4).
+2. Una segunda migración en la PR 3: `shopping_lists`, `shopping_list_items` y su publicación de realtime (§3.7–§3.8).
+
+Las dos crean CHECKs, índices y RLS, y llevan al final una consulta de verificación comentada (convención de `supabase/migrations/README.md`). **No insertan datos**: la semilla se aplica desde el frontend (§6). Cada una se ejecuta primero en dev y después en producción, **antes** de mergear su PR.
 
 ## 4. Ingredientes y receta en Platos
 
