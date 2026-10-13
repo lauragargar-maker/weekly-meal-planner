@@ -460,7 +460,7 @@ Hay cuatro PRs, y cada una se puede desplegar por separado:
 
 ## 11. Pendiente de validar
 
-Nada: todas las decisiones funcionales están cerradas. Los detalles de interfaz marcados con **[propuesta]** se cierran con el prototipo de Claude Design.
+Nada: todas las decisiones funcionales están cerradas. Los detalles de interfaz marcados con **[propuesta]** se cierran con el prototipo de Claude Design: https://claude.ai/artifact/XRbS5ZjNdYvDcv8CnFaTSD (privado; hay que compartirlo desde el propio canvas).
 
 ## 12. Backlog
 
