@@ -184,7 +184,7 @@ El editor de plato (`AddDishModal`) gana dos bloques:
 **Ingredientes**
 - Un campo con autocompletado sobre el catálogo del hogar (`ingredients`), buscando por `name_key`. Pulsar Intro o elegir una sugerencia añade el ingrediente como chip.
 - Si el texto no existe en el catálogo, se crea el ingrediente al guardar el plato. Su sección se **infiere** de la tabla de ingredientes semilla (§6) si coincide por `name_key`; si no, se usa `other`. El tipo por defecto es **de compra**.
-- Cada chip se puede quitar. Si se puede reordenar arrastrando está pendiente (§11).
+- Cada chip se puede quitar. Los ingredientes se muestran en el orden en que se añadieron; reordenarlos arrastrando queda en el backlog (§12).
 - Al tocar un chip se abre un pequeño menú con:
   - Sección: selector.
   - "Básico de casa (no lo añadas a la lista)": interruptor.
@@ -460,7 +460,7 @@ Hay cuatro PRs, y cada una se puede desplegar por separado:
 
 ## 11. Pendiente de validar
 
-1. Si el **orden de los ingredientes** dentro de un plato se puede cambiar arrastrando en la v1, o si se quedan en el orden en que se añadieron (§4.2).
+Nada: todas las decisiones funcionales están cerradas. Los detalles de interfaz marcados con **[propuesta]** se cierran con el prototipo de Claude Design.
 
 ## 12. Backlog
 
@@ -472,3 +472,4 @@ Ideas fuera de la v1, apuntadas para no perderlas:
 4. **Uso sin conexión**: guardar los checks en local y sincronizar después (§7.6).
 5. **Elegir comida o cena por separado** en el selector de días (D10).
 6. **Guardar en el menú IDs de plato** en lugar de nombres (§4.3).
+7. **Reordenar los ingredientes de un plato** arrastrándolos en la ficha (§4.2).
