@@ -1,21 +1,27 @@
-import { useState } from 'react'
-import { DishIdea, NewDishIdea } from '../types'
+import { useMemo, useState } from 'react'
+import { DishIdea, DishIngredient, NewDishIdea, ShoppingIngredient } from '../types'
 import AddDishModal from './AddDishModal'
+import DishSheet from './DishSheet'
+import { IngredientDraft, dishesWithIngredients, ingredientsOfDish } from '../lib/dishIngredients'
 
 interface CatalogViewProps {
   dishIdeas: DishIdea[]
   householdName: string
-  onSaveDish: (dishData: NewDishIdea, dishId?: string) => void
+  /** The household's shopping ingredients and which dish takes which. */
+  ingredientCatalog: ShoppingIngredient[]
+  dishIngredients: DishIngredient[]
+  onSaveDish: (dishData: NewDishIdea, dishId?: string, ingredients?: IngredientDraft[]) => void | Promise<void>
   onDeleteDish: (dishId: string) => void
 }
 
-type CategoryFilter = 'all' | DishIdea['category']
+type CategoryFilter = 'all' | DishIdea['category'] | 'no_ingredients'
 
 const FILTERS: { value: CategoryFilter; label: string }[] = [
   { value: 'all', label: 'Todos' },
   { value: 'starter', label: 'Primeros' },
   { value: 'main', label: 'Segundos' },
   { value: 'single', label: 'Únicos' },
+  { value: 'no_ingredients', label: 'Sin ingredientes' },
 ]
 
 const CATEGORY_LABEL: Record<DishIdea['category'], string> = {
@@ -36,15 +42,30 @@ const DAY_LABEL: Record<DishIdea['day_type'], string> = {
   weekendday: 'Finde',
 }
 
-export default function CatalogView({ dishIdeas, householdName, onSaveDish, onDeleteDish }: CatalogViewProps) {
+export default function CatalogView({
+  dishIdeas,
+  householdName,
+  ingredientCatalog,
+  dishIngredients,
+  onSaveDish,
+  onDeleteDish,
+}: CatalogViewProps) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<CategoryFilter>('all')
+  // The dish whose sheet is open. Kept by id so it shows the saved version
+  // once the editor on top of it closes.
+  const [sheetDishId, setSheetDishId] = useState<string | null>(null)
   // null = closed; 'new' = creating; a dish = editing that dish.
   const [editorTarget, setEditorTarget] = useState<null | 'new' | DishIdea>(null)
 
+  const withIngredients = useMemo(() => dishesWithIngredients(dishIngredients), [dishIngredients])
+  const sheetDish = dishIdeas.find((dish) => dish.id === sheetDishId) ?? null
+
   const trimmedQuery = query.trim().toLowerCase()
   const visibleDishes = dishIdeas.filter((dish) => {
-    if (filter !== 'all' && dish.category !== filter) return false
+    if (filter === 'no_ingredients') {
+      if (withIngredients.has(dish.id)) return false
+    } else if (filter !== 'all' && dish.category !== filter) return false
     if (trimmedQuery && !dish.name.toLowerCase().includes(trimmedQuery)) return false
     return true
   })
@@ -134,8 +155,8 @@ export default function CatalogView({ dishIdeas, householdName, onSaveDish, onDe
           {visibleDishes.map((dish) => (
             <li key={dish.id}>
               <button
-                onClick={() => setEditorTarget(dish)}
-                aria-label={`Editar ${dish.name}`}
+                onClick={() => setSheetDishId(dish.id)}
+                aria-label={`Ver ${dish.name}`}
                 className="flex w-full min-h-[56px] items-center justify-between gap-3 rounded-2xl border-2 border-crema-300 bg-white px-4 py-3.5 text-left transition-[background-color,transform] duration-120 hover:bg-crema-100 focus:outline-none focus:ring-2 focus:ring-verde-500 focus:ring-offset-2 lg:hover:-translate-y-0.5"
               >
                 <div className="min-w-0">
@@ -145,9 +166,15 @@ export default function CatalogView({ dishIdeas, householdName, onSaveDish, onDe
                     {DAY_LABEL[dish.day_type]}
                   </p>
                 </div>
-                <span className="flex-none text-tinta-500" aria-hidden="true">
-                  ✎
-                </span>
+                {withIngredients.has(dish.id) ? (
+                  <span className="flex-none text-lg font-extrabold text-tinta-500" aria-hidden="true">
+                    ›
+                  </span>
+                ) : (
+                  <span className="flex-none rounded-full bg-amarillo-100 px-2.5 py-1 font-sans text-[11px] font-extrabold text-amarillo-700">
+                    Sin ingredientes
+                  </span>
+                )}
               </button>
             </li>
           ))}
@@ -160,18 +187,37 @@ export default function CatalogView({ dishIdeas, householdName, onSaveDish, onDe
         </p>
       )}
 
+      {sheetDish && !editorTarget && (
+        <DishSheet
+          dish={sheetDish}
+          ingredients={ingredientsOfDish(sheetDish.id, dishIngredients, ingredientCatalog)}
+          onEdit={() => setEditorTarget(sheetDish)}
+          onClose={() => setSheetDishId(null)}
+        />
+      )}
+
       {editorTarget && (
         <AddDishModal
           variant="catalog"
           dishIdeas={dishIdeas}
           dish={editorTarget === 'new' ? undefined : editorTarget}
+          ingredientCatalog={ingredientCatalog}
+          initialIngredients={
+            editorTarget === 'new'
+              ? []
+              : ingredientsOfDish(editorTarget.id, dishIngredients, ingredientCatalog).map(
+                  ({ id, name, section, is_staple }) => ({ id, name, section, is_staple })
+                )
+          }
           onClose={() => setEditorTarget(null)}
-          onSaveDish={(dishData, dishId) => {
-            onSaveDish(dishData, dishId)
+          onSaveDish={(dishData, dishId, ingredients) => {
+            onSaveDish(dishData, dishId, ingredients)
+            // Back to the sheet when editing from it; a new dish has no sheet open.
             setEditorTarget(null)
           }}
           onDeleteDish={(dishId) => {
             onDeleteDish(dishId)
+            setSheetDishId(null)
             setEditorTarget(null)
           }}
         />
