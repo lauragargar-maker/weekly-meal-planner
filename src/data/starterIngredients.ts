@@ -65,6 +65,9 @@ export const STARTER_INGREDIENTS: StarterIngredient[] = [
   { name: 'Limón', section: 'produce' },
   { name: 'Melón', section: 'produce' },
   { name: 'Perejil fresco', section: 'produce' },
+  { name: 'Albahaca', section: 'produce' },
+  { name: 'Plátano', section: 'produce' },
+  { name: 'Repollo', section: 'produce' },
 
   // Carnicería
   { name: 'Pollo entero', section: 'meat' },
@@ -97,6 +100,7 @@ export const STARTER_INGREDIENTS: StarterIngredient[] = [
   { name: 'Gambas', section: 'fish' },
   { name: 'Calamares', section: 'fish' },
   { name: 'Mejillones', section: 'fish' },
+  { name: 'Rape', section: 'fish' },
 
   // Charcutería y quesos
   { name: 'Jamón serrano', section: 'deli' },
@@ -145,10 +149,14 @@ export const STARTER_INGREDIENTS: StarterIngredient[] = [
   { name: 'Pan rallado', section: 'grocery' },
   { name: 'Caldo de pollo', section: 'grocery' },
   { name: 'Caldo de pescado', section: 'grocery' },
+  { name: 'Caldo de carne', section: 'grocery' },
   { name: 'Maíz dulce', section: 'grocery' },
   { name: 'Pimientos del piquillo', section: 'grocery' },
   { name: 'Azafrán', section: 'grocery' },
   { name: 'Mostaza', section: 'grocery' },
+  { name: 'Miel', section: 'grocery' },
+  { name: 'Salsa de soja', section: 'grocery' },
+  { name: 'Nueces', section: 'grocery' },
   { name: 'Vino blanco', section: 'drinks' },
 
   // Congelados
