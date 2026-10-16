@@ -25,6 +25,10 @@ import { describeDegradedMenu } from './lib/degradedMenu'
 import { swapDays } from './lib/swapDays'
 import { IngredientDraft, saveDishIngredients } from './lib/dishIngredients'
 import { applyStarterSeed } from './lib/seedIngredients'
+import { useShoppingList } from './lib/useShoppingList'
+import { listStatus } from './lib/shoppingList'
+import ShoppingListButton from './components/ShoppingListButton'
+import ShoppingOverlay, { ShoppingMode } from './components/ShoppingOverlay'
 import { STARTER_CATALOG } from './data/starterCatalog'
 import { identifyHousehold, trackEvent } from './lib/analytics'
 import { WEEK_RANGE, formatLocalDate, weekEndFor, weekKeyFor, weekStartFor } from './utils/weekStart'
@@ -157,6 +161,17 @@ function App({ household }: { household: Household }) {
   useEffect(() => {
     loadShoppingIngredients()
   }, [loadShoppingIngredients])
+
+  // The household's shopping list (docs/shopping-list-spec.md §5) and which of
+  // its two screens is open over Semana, if any.
+  const shopping = useShoppingList({
+    householdId,
+    userId: session?.user?.id ?? null,
+    catalog: ingredientCatalog,
+    onIngredientsChanged: loadShoppingIngredients,
+  })
+  const [shoppingMode, setShoppingMode] = useState<ShoppingMode | null>(null)
+  const shoppingStatus = shopping.list ? listStatus(shopping.list, shopping.items, new Date()) : null
 
   const loadDishIdeas = useCallback(async () => {
     try {
@@ -850,6 +865,16 @@ function App({ household }: { household: Household }) {
             <span className="hidden text-[13px] font-extrabold text-tinta-500 md:inline">
               {household.name}
             </span>
+            {view === 'agenda' && shopping.loaded && (
+              <ShoppingListButton
+                pending={shoppingStatus === 'active' ? shopping.items.filter((item) => !item.checked).length : null}
+                onClick={() => {
+                  // A list in progress opens; a closed one or none leads to the picker (§5.10).
+                  setShoppingMode(shoppingStatus === 'active' ? 'list' : 'picker')
+                  trackEvent('shopping_list_opened', { has_list: shoppingStatus === 'active' })
+                }}
+              />
+            )}
             {session?.user && (
               <button
                 onClick={() => setFeedbackOpen(true)}
@@ -1038,6 +1063,32 @@ function App({ household }: { household: Household }) {
             Deshacer
           </button>
         </div>
+      )}
+
+      {shoppingMode && (
+        <ShoppingOverlay
+          mode={shoppingMode}
+          onModeChange={setShoppingMode}
+          shopping={shopping}
+          status={shoppingStatus}
+          userId={session?.user?.id ?? null}
+          dishes={dishIdeas}
+          links={dishIngredients}
+          catalog={ingredientCatalog}
+          menusVersion={Object.values(menusByWeek)
+            .map((menu) => `${menu.id}@${menu.updated_at}`)
+            .join('|')}
+          onShowNextWeek={() => {
+            setShoppingMode(null)
+            goTo('agenda')
+            if (weekOffset === 0) handleWeekNav(1)
+          }}
+          onGoToPlatos={() => {
+            setShoppingMode(null)
+            goTo('catalog')
+          }}
+          onClose={() => setShoppingMode(null)}
+        />
       )}
 
       {feedbackOpen && session?.user && (
