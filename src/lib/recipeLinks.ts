@@ -46,12 +46,17 @@ export const normalizeRecipeUrl = (value: string): string | null => {
 /** Whether a typed link can be stored (see `normalizeRecipeUrl`). */
 export const isValidRecipeUrl = (value: string): boolean => normalizeRecipeUrl(value) !== null
 
+/** The host without "www.", or '' for something that is not a link. */
+export const recipeDomain = (value: string): string => {
+  try {
+    return new URL(value).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
 /** "Directo al Paladar" for a directoalpaladar.com link; the bare host otherwise. */
 export const recipeSiteName = (value: string): string => {
-  try {
-    const host = new URL(value).hostname.replace(/^www\./, '')
-    return KNOWN_SITES[host] ?? host
-  } catch {
-    return value
-  }
+  const host = recipeDomain(value)
+  return host ? KNOWN_SITES[host] ?? host : value
 }

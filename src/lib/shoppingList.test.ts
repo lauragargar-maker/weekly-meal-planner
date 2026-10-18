@@ -6,6 +6,7 @@ import {
   buildShoppingList,
   defaultSelection,
   dishesOfDay,
+  dishesToComplete,
   formatListText,
   formatRange,
   formatSources,
@@ -168,6 +169,32 @@ describe('buildShoppingList', () => {
     )
     expect(draft.items.map((i) => i.name)).toContain('Lentejas')
     expect(draft.missingDishes).toEqual(['Pisto de mamá', 'Tortilla del abuelo'])
+  })
+})
+
+describe('dishesToComplete', () => {
+  it('lists the dishes with no ingredients and the ones no longer in Platos, once each, in eating order', () => {
+    const missing = dishesToComplete(
+      ['2026-10-16', '2026-10-14', '2026-10-15'],
+      inputs([
+        { day: '2026-10-14', meal_type: 'dinner', single: 'pisto de mamá' },
+        { day: '2026-10-14', meal_type: 'lunch', main: 'Lentejas con verduras', starter: 'Sopa de ajo' },
+        { day: '2026-10-15', meal_type: 'lunch', single: 'Pisto de mamá' },
+        { day: '2026-10-16', meal_type: 'dinner', single: 'Pisto de mamá' },
+      ])
+    )
+    expect(missing).toEqual([
+      { name: 'Sopa de ajo', dish: null, when: 'Comida del miércoles 14' },
+      { name: 'pisto de mamá', dish: dishes[2], when: 'Cena del miércoles 14 y 2 más' },
+    ])
+  })
+
+  it('is empty when every dish has ingredients, and ignores days not chosen', () => {
+    const items: MenuItem[] = [
+      { day: '2026-10-14', meal_type: 'lunch', single: 'Merluza a la romana' },
+      { day: '2026-10-15', meal_type: 'lunch', single: 'Pisto de mamá' },
+    ]
+    expect(dishesToComplete(['2026-10-14'], inputs(items))).toEqual([])
   })
 })
 

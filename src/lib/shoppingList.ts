@@ -166,6 +166,52 @@ export const buildShoppingList = (days: string[], { menusByDay, dishes, links, c
   return { days: included, skippedDays: skipped, missingDishes: missing, items: [...byIngredient.values()] }
 }
 
+export interface DishToComplete {
+  /** As planned in the menu. */
+  name: string
+  /** The dish in Platos, or null when no dish has that name any more. */
+  dish: DishIdea | null
+  /** "Cena del jueves 15", or "Comida del lunes 12 y 2 más" when it repeats. */
+  when: string
+}
+
+const MEAL_NAMES: Record<MenuItem['meal_type'], string> = { lunch: 'Comida', dinner: 'Cena' }
+
+/**
+ * The dishes planned on `days` that would leave the list short (§5.3): found
+ * in Platos but with no ingredients, or not found at all. In the order they
+ * are first eaten, each once.
+ */
+export const dishesToComplete = (
+  days: string[],
+  { menusByDay, dishes, links }: Pick<ListInputs, 'menusByDay' | 'dishes' | 'links'>
+): DishToComplete[] => {
+  const dishByKey = new Map(dishes.map((dish) => [toKey(dish.name), dish]))
+  const filled = dishesWithIngredients(links)
+  const found = new Map<string, { name: string; dish: DishIdea | null; first: string; times: number }>()
+  for (const day of [...days].sort()) {
+    for (const { name, meal } of dishesOfDay(menusByDay.get(day) ?? [])) {
+      const key = toKey(name)
+      const dish = dishByKey.get(key) ?? null
+      if (dish && filled.has(dish.id)) continue
+      const seen = found.get(key)
+      if (seen) seen.times++
+      else
+        found.set(key, {
+          name,
+          dish,
+          first: `${MEAL_NAMES[meal]} del ${longDay(day).toLocaleLowerCase('es')}`,
+          times: 1,
+        })
+    }
+  }
+  return [...found.values()].map(({ name, dish, first, times }) => ({
+    name,
+    dish,
+    when: times > 1 ? `${first} y ${times - 1} más` : first,
+  }))
+}
+
 /** djb2 over the text: short, stable, and plenty to tell two states apart. */
 const hash = (text: string): string => {
   let h = 5381
