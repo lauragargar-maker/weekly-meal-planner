@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth-context'
 import { getErrorMessage, translateError } from '../lib/errorMessages'
 import { STARTER_CATALOG } from '../data/starterCatalog'
+import { STARTER_SUGGESTIONS } from '../data/starterIngredients'
+import { IngredientDraft, saveDishIngredients } from '../lib/dishIngredients'
+import { toKey } from '../lib/nameKey'
 import { trackEvent } from '../lib/analytics'
 import { DEFAULT_RULES, HouseholdRules } from '../lib/householdRules'
 import { INGREDIENTS } from '../lib/ingredients'
@@ -43,6 +46,9 @@ export default function OnboardingScreen() {
   const [rules, setRules] = useState<HouseholdRules>(DEFAULT_RULES)
   const [discarded, setDiscarded] = useState<Set<string>>(new Set())
   const [ownDishes, setOwnDishes] = useState<NewDishIdea[]>([])
+  // The shopping ingredients of the dishes added here, by `toKey(name)`. They
+  // can only be written once the household and its dishes exist.
+  const [ownIngredients, setOwnIngredients] = useState<Record<string, IngredientDraft[]>>({})
   const [showAddDish, setShowAddDish] = useState(false)
 
   const [familyCode, setFamilyCode] = useState('')
@@ -130,10 +136,23 @@ export default function OnboardingScreen() {
       if (rulesError) console.error('Error saving initial rules:', rulesError)
 
       if (keptDishes.length > 0) {
-        const { error: seedError } = await supabase
+        const { data: inserted, error: seedError } = await supabase
           .from('dish_ideas')
           .insert(keptDishes.map((dish) => ({ ...dish, household_id: householdId })))
+          .select('id, name')
         if (seedError) console.error('Error seeding catalog:', seedError)
+
+        // The dishes typed here bring their ingredients along. Starter dishes
+        // get theirs from the seed on first load (App.tsx).
+        for (const row of (inserted ?? []) as { id: string; name: string }[]) {
+          const drafts = ownIngredients[toKey(row.name)]
+          if (!drafts?.length) continue
+          try {
+            await saveDishIngredients(supabase, householdId, row.id, drafts, [])
+          } catch (ingredientsError) {
+            console.error('Error saving ingredients of', row.name, ingredientsError)
+          }
+        }
       }
 
       trackEvent('household_created', {
@@ -444,9 +463,18 @@ export default function OnboardingScreen() {
             created_at: '',
             updated_at: '',
           })) as DishIdea[]}
+          ingredientCatalog={STARTER_SUGGESTIONS}
           onClose={() => setShowAddDish(false)}
-          onSaveDish={(dishData) => {
+          onSaveDish={(dishData, _dishId, ingredients) => {
             setOwnDishes((current) => [...current, dishData])
+            if (ingredients?.length) {
+              // The suggestions' ids are placeholders: without one, each
+              // ingredient is created in the new household's catalogue.
+              setOwnIngredients((current) => ({
+                ...current,
+                [toKey(dishData.name)]: ingredients.map(({ name, section, is_staple }) => ({ name, section, is_staple })),
+              }))
+            }
             setShowAddDish(false)
           }}
         />
