@@ -95,7 +95,7 @@ PK `(dish_id, ingredient_id)`: un ingrediente no se repite dentro de un plato. H
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `recipe_url` | TEXT NULL | CHECK `recipe_url ~ '^https://'` y longitud ≤ 500. |
+| `recipe_url` | TEXT NULL | CHECK: enlace `http://` o `https://` y longitud ≤ 500. |
 
 Un plato **"tiene ingredientes"** si tiene al menos una fila en `dish_ingredients`, aunque todos sean básicos. Un plato **"sin ingredientes"** es el que tiene cero filas. No se añade ninguna columna de estado.
 
@@ -199,7 +199,7 @@ El editor de plato (`AddDishModal`) gana dos bloques:
   Al cambiar uno de estos dos valores se cambia **el ingrediente del hogar**, y por tanto afecta a todos los platos que lo usan. El menú lo avisa con el texto: *"Se aplicará en todos tus platos"*.
 
 **Receta recomendada**
-- Un campo URL opcional. Se valida que empiece por `https://` y que tenga 500 caracteres o menos. Si no es válida, aparece el error *"Pega un enlace que empiece por https://"*.
+- Un campo de enlace opcional. Vale cualquier dirección web: una web de recetas, un archivo de Google Drive o un blog. Si se pega sin `https://`, se añade al guardar. Solo se rechaza lo que no es una dirección web (incluidos `javascript:` y similares, que ejecutarían código al abrir la ficha), con el error *"Ese enlace no parece una dirección web. Cópialo desde el navegador o desde Drive."*. Máximo 500 caracteres.
 
 Al crear un plato nuevo, el bloque de ingredientes aparece en el editor pero es **opcional**. No se bloquea el guardado sin ingredientes.
 
@@ -419,7 +419,7 @@ Todos los miembros del hogar pueden hacer todo: editar ingredientes, generar, re
 | Nombre de ingrediente | 1–40 caracteres |
 | Ingredientes por plato | ≤ 30 |
 | Artículo a mano | 1–60 caracteres |
-| `recipe_url` | `https://`, ≤ 500 |
+| `recipe_url` | `http://` o `https://` (se añade `https://` si falta), ≤ 500 |
 
 ### 7.3 Accesibilidad
 - Los checks son `<input type="checkbox">` con su etiqueta.

@@ -1,28 +1,37 @@
 import { describe, expect, it } from 'vitest'
-import { isValidRecipeUrl, recipeSiteName } from './recipeLinks'
+import { isValidRecipeUrl, normalizeRecipeUrl, recipeSiteName } from './recipeLinks'
 
-describe('isValidRecipeUrl', () => {
-  it('accepts an https link', () => {
-    expect(isValidRecipeUrl('https://www.directoalpaladar.com/recetas-de-legumbres/lentejas')).toBe(true)
+describe('normalizeRecipeUrl', () => {
+  it('keeps an https link as it is', () => {
+    expect(normalizeRecipeUrl('https://www.directoalpaladar.com/recetas-de-legumbres/lentejas')).toBe(
+      'https://www.directoalpaladar.com/recetas-de-legumbres/lentejas'
+    )
   })
 
-  it('tolerates surrounding spaces from a paste', () => {
-    expect(isValidRecipeUrl('  https://bonviveur.es/recetas/cocido  ')).toBe(true)
+  it('accepts a Google Drive file and a plain http site', () => {
+    expect(normalizeRecipeUrl('https://drive.google.com/file/d/abc123/view?usp=sharing')).not.toBeNull()
+    expect(normalizeRecipeUrl('http://recetasdelaabuela.es/cocido')).toBe('http://recetasdelaabuela.es/cocido')
   })
 
-  it('rejects http and links without a scheme', () => {
-    expect(isValidRecipeUrl('http://bonviveur.es/recetas/cocido')).toBe(false)
-    expect(isValidRecipeUrl('bonviveur.es/recetas/cocido')).toBe(false)
+  it('adds https:// to a link pasted without it, and trims spaces', () => {
+    expect(normalizeRecipeUrl('  bonviveur.es/recetas/cocido  ')).toBe('https://bonviveur.es/recetas/cocido')
   })
 
-  it('rejects something that is not a web address', () => {
-    expect(isValidRecipeUrl('https://')).toBe(false)
-    expect(isValidRecipeUrl('https://localhost')).toBe(false)
-    expect(isValidRecipeUrl('')).toBe(false)
+  it('refuses anything a browser would not open as a web page', () => {
+    expect(normalizeRecipeUrl('javascript:alert(1)')).toBeNull()
+    expect(normalizeRecipeUrl('data:text/html,hola')).toBeNull()
+    expect(normalizeRecipeUrl('mi receta favorita')).toBeNull()
+    expect(normalizeRecipeUrl('https://localhost')).toBeNull()
+    expect(normalizeRecipeUrl('')).toBeNull()
   })
 
-  it('rejects a link longer than the database allows', () => {
-    expect(isValidRecipeUrl('https://a.com/' + 'x'.repeat(500))).toBe(false)
+  it('refuses a link longer than the database allows', () => {
+    expect(normalizeRecipeUrl('https://a.com/' + 'x'.repeat(500))).toBeNull()
+  })
+
+  it('agrees with isValidRecipeUrl', () => {
+    expect(isValidRecipeUrl('bonviveur.es/x')).toBe(true)
+    expect(isValidRecipeUrl('javascript:alert(1)')).toBe(false)
   })
 })
 
@@ -31,6 +40,11 @@ describe('recipeSiteName', () => {
     expect(recipeSiteName('https://www.directoalpaladar.com/x')).toBe('Directo al Paladar')
     expect(recipeSiteName('https://bonviveur.es/x')).toBe('Bon Viveur')
     expect(recipeSiteName('https://www.cocinaabierta.co/x')).toBe('Cocina Abierta')
+  })
+
+  it('names Google Drive and Docs', () => {
+    expect(recipeSiteName('https://drive.google.com/file/d/abc/view')).toBe('Google Drive')
+    expect(recipeSiteName('https://docs.google.com/document/d/abc')).toBe('Google Docs')
   })
 
   it('falls back to the bare host', () => {
