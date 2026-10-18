@@ -160,15 +160,7 @@ export default function ShoppingListView({
       >
         <header className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <button
-              ref={closeRef}
-              onClick={onClose}
-              aria-label="Volver a la semana"
-              className="flex h-11 w-11 flex-none items-center justify-center rounded-full border-2 border-crema-300 bg-white text-[22px] font-extrabold text-tinta-900 focus:outline-none focus:ring-2 focus:ring-verde-500"
-            >
-              ‹
-            </button>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h2 id="shopping-list-title" className="text-2xl font-extrabold leading-tight">
                 Lista de la compra
               </h2>
@@ -177,6 +169,14 @@ export default function ShoppingListView({
                 {timeAgo(list.generated_at)}
               </p>
             </div>
+            <button
+              ref={closeRef}
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="flex h-11 w-11 flex-none items-center justify-center rounded-full border-2 border-crema-300 bg-white text-lg font-extrabold text-tinta-900 focus:outline-none focus:ring-2 focus:ring-verde-500"
+            >
+              ✕
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-2">

@@ -119,34 +119,40 @@ export default function ShoppingDayPicker({
   ]
 
   return (
-    <div className="fixed inset-0 z-30 flex flex-col overflow-y-auto bg-crema-100 lg:items-center lg:bg-[rgba(38,33,28,0.5)] lg:p-7">
+    <div
+      className="fixed inset-0 z-30 flex flex-col overflow-y-auto bg-crema-100 lg:items-center lg:justify-center lg:overflow-hidden lg:bg-[rgba(38,33,28,0.5)] lg:p-7"
+      // On desktop the picker floats over a backdrop; a click on it closes.
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !busy) onClose()
+      }}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="day-picker-title"
-        className="flex min-h-full w-full flex-col lg:min-h-0 lg:max-w-[560px] lg:overflow-hidden lg:rounded-sheet lg:bg-crema-100 lg:shadow-[0_24px_60px_rgba(38,33,28,0.45)]"
+        className="flex min-h-full w-full flex-col lg:max-h-full lg:min-h-0 lg:max-w-[560px] lg:overflow-hidden lg:rounded-sheet lg:bg-crema-100 lg:shadow-[0_24px_60px_rgba(38,33,28,0.45)]"
       >
         <header className="flex items-center gap-2 px-[22px] pt-5 lg:px-8 lg:pt-7">
-          <button
-            ref={closeRef}
-            onClick={onClose}
-            aria-label="Volver"
-            className="flex h-11 w-11 flex-none items-center justify-center rounded-full border-2 border-crema-300 bg-white text-[22px] font-extrabold text-tinta-900 focus:outline-none focus:ring-2 focus:ring-verde-500"
-          >
-            ‹
-          </button>
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 id="day-picker-title" className="text-2xl font-extrabold leading-tight">
               Lista de la compra
             </h2>
             <p className="font-sans text-[13px] font-bold text-tinta-500">¿Para qué días compras?</p>
           </div>
+          <button
+            ref={closeRef}
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="flex h-11 w-11 flex-none items-center justify-center rounded-full border-2 border-crema-300 bg-white text-lg font-extrabold text-tinta-900 focus:outline-none focus:ring-2 focus:ring-verde-500"
+          >
+            ✕
+          </button>
         </header>
 
         {previousRange && (
           <button
             onClick={onOpenPrevious}
-            className="ml-[74px] mt-1 flex min-h-[44px] items-center self-start font-sans text-sm font-extrabold text-verde-600 underline decoration-2 underline-offset-4 hover:text-verde-700 focus:outline-none focus:ring-2 focus:ring-verde-500 lg:ml-[82px]"
+            className="ml-[22px] mt-1 flex min-h-[44px] items-center self-start font-sans text-sm font-extrabold text-verde-600 underline decoration-2 underline-offset-4 hover:text-verde-700 focus:outline-none focus:ring-2 focus:ring-verde-500 lg:ml-8"
           >
             Ver la lista anterior ({previousRange}) ›
           </button>
@@ -166,7 +172,7 @@ export default function ShoppingDayPicker({
           ))}
         </div>
 
-        <div className="flex flex-col gap-2 px-[22px] pb-4 pt-2 lg:px-8">
+        <div className="flex flex-col gap-2 px-[22px] pb-4 pt-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-8">
           {groups.map((group) => (
             <fieldset key={group.title} className="flex min-w-0 flex-col gap-2">
               <legend className="label-nam px-1 pt-3">{group.title}</legend>

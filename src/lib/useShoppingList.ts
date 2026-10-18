@@ -239,8 +239,14 @@ export function useShoppingList({ householdId, userId, catalog, onIngredientsCha
     [items, catalog, householdId, toggle, fail]
   )
 
+  /**
+   * Takes an item off the list. With `markStaple` its ingredient also becomes
+   * a staple everywhere; `fingerprint` is then the list's fingerprint with
+   * that staple applied, so a change made from the list itself does not read
+   * as the menu having changed (§5.7).
+   */
   const removeItem = useCallback(
-    async (item: ShoppingListItem, markStaple = false) => {
+    async (item: ShoppingListItem, markStaple = false, fingerprint?: string) => {
       const before = items
       setItems(items.filter((i) => i.id !== item.id))
       const { error } = await supabase.from('shopping_list_items').delete().eq('id', item.id)
@@ -258,6 +264,12 @@ export function useShoppingList({ householdId, userId, catalog, onIngredientsCha
         if (stapleError) {
           fail('Error marking ingredient as staple:', stapleError)
           return
+        }
+        const list = listRef.current
+        if (list && fingerprint) {
+          setList({ ...list, fingerprint })
+          const { error: listError } = await supabase.from('shopping_lists').update({ fingerprint }).eq('id', list.id)
+          if (listError) console.error('Error updating shopping list fingerprint:', listError)
         }
         onIngredientsChanged()
       }

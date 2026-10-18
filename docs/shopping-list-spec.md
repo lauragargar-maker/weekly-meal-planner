@@ -334,6 +334,8 @@ Al abrir la lista, y cuando llega un evento realtime de `weekly_menus` o de los 
 - se genera el menú de un día que estaba en `skipped_days`;
 - cambian los ingredientes de compra de un plato incluido, incluido marcar o desmarcar un básico.
 
+Excepción: marcar un artículo como "Siempre lo tengo en casa" desde la propia lista no cuenta como cambio. La lista ya lo refleja, así que se guarda la huella nueva junto con el cambio y no aparece el aviso. Si la lista ya estaba desactualizada, sigue estándolo.
+
 La lista **nunca cambia sola**: solo cambia al pulsar "Regenerar".
 
 ### 5.8 Formato del texto copiado y compartido

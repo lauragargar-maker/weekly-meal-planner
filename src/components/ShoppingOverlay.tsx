@@ -79,6 +79,17 @@ export default function ShoppingOverlay({
     onModeChange('list')
   }
 
+  // Marking a staple from the list changes what the list is built from, but
+  // the list already reflects it; carry the fingerprint along so no "menu
+  // changed" notice appears. A list that was already stale stays stale.
+  const removeItem: ShoppingListState['removeItem'] = async (item, markStaple = false) => {
+    const ingredientId = item.ingredient_id
+    if (!markStaple || !ingredientId || !list || !menus || stale) return shopping.removeItem(item, markStaple)
+    const withStaple = catalog.map((i) => (i.id === ingredientId ? { ...i, is_staple: true } : i))
+    const fingerprint = listFingerprint([...list.days, ...list.skipped_days], { ...inputsFor(menus), catalog: withStaple })
+    return shopping.removeItem(item, true, fingerprint)
+  }
+
   const handleRegenerate = async () => {
     if (!list) return
     const fresh = await loadMenus()
@@ -94,7 +105,7 @@ export default function ShoppingOverlay({
         stale={stale}
         userId={userId}
         catalog={catalog}
-        actions={shopping}
+        actions={{ ...shopping, removeItem }}
         saveError={shopping.saveError}
         onClearSaveError={shopping.clearSaveError}
         onRegenerate={handleRegenerate}
@@ -113,8 +124,7 @@ export default function ShoppingOverlay({
       onGenerate={handleGenerate}
       onOpenPrevious={() => onModeChange('list')}
       onShowNextWeek={onShowNextWeek}
-      // With a list in progress the picker was reached from it, so going back returns there.
-      onClose={status === 'active' ? () => onModeChange('list') : onClose}
+      onClose={onClose}
     />
   )
 }
