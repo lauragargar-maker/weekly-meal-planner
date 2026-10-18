@@ -1,4 +1,4 @@
-import { StoreSection } from '../types'
+import { ShoppingIngredient, StoreSection } from '../types'
 import { toKey } from '../lib/nameKey'
 
 export interface StarterIngredient {
@@ -173,3 +173,18 @@ export const guessIngredient = (name: string): { section: StoreSection; is_stapl
   const known = BY_KEY.get(toKey(name))
   return { section: known?.section ?? 'other', is_staple: known?.is_staple ?? false }
 }
+
+/**
+ * The starter ingredients shaped like a household catalogue, for suggestions
+ * where there is no household yet (onboarding). Their ids are placeholders:
+ * whatever uses them must drop the id before saving, so the ingredient is
+ * created — or matched by name — in the real catalogue.
+ */
+export const STARTER_SUGGESTIONS: ShoppingIngredient[] = STARTER_INGREDIENTS.map(({ name, section, is_staple }) => ({
+  id: `starter:${toKey(name)}`,
+  household_id: '',
+  name,
+  name_key: toKey(name),
+  section,
+  is_staple: Boolean(is_staple),
+}))
