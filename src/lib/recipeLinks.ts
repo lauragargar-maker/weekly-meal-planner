@@ -16,22 +16,35 @@ const KNOWN_SITES: Record<string, string> = {
   'recetasderechupete.com': 'Recetas de Rechupete',
   'hogarmania.com': 'Hogarmanía',
   'cocinatis.com': 'Cocinatis',
+  'drive.google.com': 'Google Drive',
+  'docs.google.com': 'Google Docs',
 }
 
 /**
- * Whether a typed link can be stored: https only (the CHECK rejects anything
- * else) and something a browser can actually open.
+ * The link as it will be stored, or null if it cannot be. docs/shopping-list-spec.md §4.2.
+ *
+ * Any web link is accepted — a cooking site, a file in Google Drive, a blog on
+ * plain http — and one pasted without its scheme ("bonviveur.es/…") gets
+ * `https://` in front. Only http and https get through: the link becomes an
+ * `href`, and a `javascript:` one would run code in whoever opens the dish
+ * sheet. The database's CHECK draws the same line.
  */
-export const isValidRecipeUrl = (value: string): boolean => {
-  const url = value.trim()
-  if (url.length === 0 || url.length > RECIPE_URL_MAX_LENGTH) return false
-  if (!url.startsWith('https://')) return false
+export const normalizeRecipeUrl = (value: string): string | null => {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return null
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`
+  if (withScheme.length > RECIPE_URL_MAX_LENGTH) return null
   try {
-    return new URL(url).hostname.includes('.')
+    const url = new URL(withScheme)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    return url.hostname.includes('.') ? withScheme : null
   } catch {
-    return false
+    return null
   }
 }
+
+/** Whether a typed link can be stored (see `normalizeRecipeUrl`). */
+export const isValidRecipeUrl = (value: string): boolean => normalizeRecipeUrl(value) !== null
 
 /** "Directo al Paladar" for a directoalpaladar.com link; the bare host otherwise. */
 export const recipeSiteName = (value: string): string => {

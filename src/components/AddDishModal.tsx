@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { DishIdea, Ingredient, NewDishIdea, ShoppingIngredient } from '../types'
 import { INGREDIENTS } from '../lib/ingredients'
 import { IngredientDraft } from '../lib/dishIngredients'
-import { RECIPE_URL_MAX_LENGTH, isValidRecipeUrl, recipeSiteName } from '../lib/recipeLinks'
+import { RECIPE_URL_MAX_LENGTH, normalizeRecipeUrl, recipeSiteName } from '../lib/recipeLinks'
 import ShoppingIngredientsEditor from './ShoppingIngredientsEditor'
 
 interface AddDishModalProps {
@@ -113,7 +113,8 @@ export default function AddDishModal({
   const willBeStored = isCatalog || mode === 'persist'
   const needsIngredients = willBeStored && mainIngredients.length === 0
   const trimmedRecipeUrl = recipeUrl.trim()
-  const recipeUrlInvalid = isCatalog && trimmedRecipeUrl !== '' && !isValidRecipeUrl(trimmedRecipeUrl)
+  const normalizedRecipeUrl = normalizeRecipeUrl(trimmedRecipeUrl)
+  const recipeUrlInvalid = isCatalog && trimmedRecipeUrl !== '' && normalizedRecipeUrl === null
   const canSubmit = (isCatalog ? canProceed : canProceed && mode !== null) && !needsIngredients && !recipeUrlInvalid
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,7 +133,7 @@ export default function AddDishModal({
     ),
     // Only the catalogue editor shows the field; a dish saved from the menu
     // keeps whatever it had.
-    ...(isCatalog ? { recipe_url: trimmedRecipeUrl || null } : {}),
+    ...(isCatalog ? { recipe_url: normalizedRecipeUrl } : {}),
   })
 
   const toggleIngredient = (ingredient: Ingredient) =>
@@ -365,19 +366,19 @@ export default function AddDishModal({
                 value={recipeUrl}
                 maxLength={RECIPE_URL_MAX_LENGTH}
                 onChange={(e) => setRecipeUrl(e.target.value)}
-                placeholder="https://…"
+                placeholder="Enlace a una web de recetas o a tu Drive"
                 aria-invalid={recipeUrlInvalid}
                 aria-describedby="recipe-url-help"
                 className={`input-nam !bg-crema-100 lg:!bg-white ${recipeUrlInvalid ? '!border-rojo-500' : ''}`}
               />
               {recipeUrlInvalid ? (
                 <p id="recipe-url-help" className="error-nam">
-                  Pega un enlace que empiece por https://
+                  Ese enlace no parece una dirección web. Cópialo desde el navegador o desde Drive.
                 </p>
               ) : (
                 <p id="recipe-url-help" className="help-nam">
-                  {trimmedRecipeUrl
-                    ? `Se verá como «Ver receta en ${recipeSiteName(trimmedRecipeUrl)}».`
+                  {normalizedRecipeUrl
+                    ? `Se verá como «Ver receta en ${recipeSiteName(normalizedRecipeUrl)}».`
                     : 'Un enlace a la receta en una web de cocina.'}
                 </p>
               )}
