@@ -250,7 +250,8 @@ function IngredientPanel({
           />
         </span>
       </label>
-      {draft.id && (
+      {/* Placeholder ids (onboarding's suggestions) are not yet anyone's ingredient. */}
+      {draft.id && !draft.id.startsWith('starter:') && (
         <p className="rounded-xl bg-amarillo-100 px-3 py-2 font-sans text-[13px] font-bold text-amarillo-700">
           Se aplicará en todos vuestros platos que llevan {draft.name.toLocaleLowerCase('es')}.
         </p>
