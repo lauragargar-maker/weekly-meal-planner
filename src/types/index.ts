@@ -9,6 +9,10 @@ export interface Household {
    * own so a rule added later reaches old rows without a backfill.
    */
   rules: unknown
+  /** When the starter shopping ingredients were applied (spec §6.2). Null until then. */
+  ingredients_seeded_at?: string | null
+  /** When the household went through the guided ingredients flow (spec §5.3). */
+  shopping_guide_seen_at?: string | null
 }
 
 /**
@@ -39,12 +43,103 @@ export interface DishIdea {
    * invisible to every rule.
    */
   main_ingredients: Ingredient[]
+  /**
+   * A recipe on a cooking site, shown in the dish sheet as "Ver receta en …".
+   * Always https. Optional so the starter catalogue and older rows need no value.
+   */
+  recipe_url?: string | null
   created_at: string
   updated_at: string
 }
 
 // Shape used by forms that create a dish; ownership and timestamps are set by the app/DB.
 export type NewDishIdea = Omit<DishIdea, 'id' | 'household_id' | 'created_at' | 'updated_at'>
+
+/**
+ * The supermarket section a shopping ingredient is bought in. The order the
+ * list shows them in lives in `src/lib/storeSections.ts`.
+ */
+export type StoreSection =
+  | 'produce'
+  | 'meat'
+  | 'fish'
+  | 'deli'
+  | 'dairy_eggs'
+  | 'bakery'
+  | 'grocery'
+  | 'frozen'
+  | 'drinks'
+  | 'household'
+  | 'other'
+
+/**
+ * What has to be in the kitchen to cook a dish — "Chuletas de cerdo", "Sal".
+ * Not to be confused with `Ingredient`, the food group the generator's rules
+ * read (`main_ingredients`). One row per household and name: whether it is a
+ * staple and where it is bought are the household's call, not the dish's.
+ */
+export interface ShoppingIngredient {
+  id: string
+  household_id: string
+  name: string
+  /** `toKey(name)`; unique per household. */
+  name_key: string
+  section: StoreSection
+  /** "Básico de casa": always at home, so it never reaches the shopping list. */
+  is_staple: boolean
+}
+
+/** Links a dish to one of the household's shopping ingredients. */
+export interface DishIngredient {
+  dish_id: string
+  ingredient_id: string
+  household_id: string
+  /** Where it sits in the dish sheet, in the order it was added. */
+  position: number
+}
+
+/** Where a shopping-list item came from: one dish on one day. */
+export interface ShoppingSource {
+  dish: string
+  /** `YYYY-MM-DD` */
+  day: string
+  meal: 'lunch' | 'dinner'
+}
+
+/**
+ * The household's shopping list (docs/shopping-list-spec.md §3.7). One per
+ * household; a new one replaces it. Whether it is in progress or closed is
+ * worked out from its days and items (`listStatus`), never stored.
+ */
+export interface ShoppingList {
+  id: string
+  household_id: string
+  /** Days chosen that had a menu, `YYYY-MM-DD`, ascending. */
+  days: string[]
+  /** Days chosen that had no menu. */
+  skipped_days: string[]
+  /** Dishes in those days with no ingredients, or no longer in Platos. */
+  missing_dishes: string[]
+  fingerprint: string
+  generated_by: string | null
+  generated_at: string
+}
+
+/** One line of the list (§3.8). Name and section are copies: the list is frozen. */
+export interface ShoppingListItem {
+  id: string
+  list_id: string
+  household_id: string
+  ingredient_id: string | null
+  name: string
+  section: StoreSection
+  origin: 'menu' | 'manual'
+  sources: ShoppingSource[]
+  checked: boolean
+  checked_by: string | null
+  checked_at: string | null
+  created_at: string
+}
 
 export interface WeeklyMenu {
   id: string

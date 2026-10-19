@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { DishIdea, Ingredient, NewDishIdea } from '../types'
+import { DishIdea, Ingredient, NewDishIdea, ShoppingIngredient } from '../types'
 import { INGREDIENTS } from '../lib/ingredients'
+import { IngredientDraft } from '../lib/dishIngredients'
+import { normalizeRecipeUrl } from '../lib/recipeLinks'
+import RecipeUrlField from './RecipeUrlField'
+import ShoppingIngredientsEditor from './ShoppingIngredientsEditor'
 
 interface AddDishModalProps {
   /** 'menu' picks a dish for a meal slot; 'catalog' creates or edits a catalogue dish. */
@@ -10,6 +14,10 @@ interface AddDishModalProps {
   dishIdeas: DishIdea[]
   /** The dish being edited, when opened from the catalogue. */
   dish?: DishIdea
+  /** The household's shopping ingredients, for the catalogue editor's suggestions. */
+  ingredientCatalog?: ShoppingIngredient[]
+  /** What the dish being edited takes today. */
+  initialIngredients?: IngredientDraft[]
   onClose: () => void
   onConfirm?: (
     name: string,
@@ -17,7 +25,7 @@ interface AddDishModalProps {
     persist: boolean,
     dishData?: NewDishIdea
   ) => void
-  onSaveDish?: (dishData: NewDishIdea, dishId?: string) => void
+  onSaveDish?: (dishData: NewDishIdea, dishId?: string, ingredients?: IngredientDraft[]) => void
   onDeleteDish?: (dishId: string) => void
 }
 
@@ -45,6 +53,8 @@ export default function AddDishModal({
   mealType = 'lunch',
   dishIdeas,
   dish,
+  ingredientCatalog = [],
+  initialIngredients = [],
   onClose,
   onConfirm,
   onSaveDish,
@@ -59,6 +69,8 @@ export default function AddDishModal({
   const [formMealType, setFormMealType] = useState<'lunch' | 'dinner' | 'both'>(dish?.meal_type ?? mealType)
   const [dayType, setDayType] = useState<'weekday' | 'weekendday' | 'anyday'>(dish?.day_type ?? 'anyday')
   const [mainIngredients, setMainIngredients] = useState<Ingredient[]>(dish?.main_ingredients ?? [])
+  const [shoppingIngredients, setShoppingIngredients] = useState<IngredientDraft[]>(initialIngredients)
+  const [recipeUrl, setRecipeUrl] = useState(dish?.recipe_url ?? '')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const cancelDeleteRef = useRef<HTMLButtonElement>(null)
@@ -101,7 +113,10 @@ export default function AddDishModal({
    */
   const willBeStored = isCatalog || mode === 'persist'
   const needsIngredients = willBeStored && mainIngredients.length === 0
-  const canSubmit = (isCatalog ? canProceed : canProceed && mode !== null) && !needsIngredients
+  const trimmedRecipeUrl = recipeUrl.trim()
+  const normalizedRecipeUrl = normalizeRecipeUrl(trimmedRecipeUrl)
+  const recipeUrlInvalid = isCatalog && trimmedRecipeUrl !== '' && normalizedRecipeUrl === null
+  const canSubmit = (isCatalog ? canProceed : canProceed && mode !== null) && !needsIngredients && !recipeUrlInvalid
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value)
@@ -117,6 +132,9 @@ export default function AddDishModal({
     main_ingredients: INGREDIENTS.filter(({ value }) => mainIngredients.includes(value)).map(
       ({ value }) => value
     ),
+    // Only the catalogue editor shows the field; a dish saved from the menu
+    // keeps whatever it had.
+    ...(isCatalog ? { recipe_url: normalizedRecipeUrl } : {}),
   })
 
   const toggleIngredient = (ingredient: Ingredient) =>
@@ -129,7 +147,7 @@ export default function AddDishModal({
   const handleSubmit = () => {
     if (!canSubmit) return
     if (isCatalog) {
-      onSaveDish?.(dishData(), dish?.id)
+      onSaveDish?.(dishData(), dish?.id, shoppingIngredients)
       return
     }
     if (mode === 'instance') {
@@ -198,11 +216,13 @@ export default function AddDishModal({
    */
   const IngredientGroup = () => (
     <div className="mt-[18px] lg:mt-5">
+      {/* "principales" tells these apart from the shopping ingredients below:
+          these are the food groups the menu rules read. */}
       <p className="label-nam" id="group-ingredients">
-        Ingredientes
+        Ingredientes principales
       </p>
       <p className="help-nam !mt-0 mb-2">
-        Marca todos los que lleve: la lasaña es pasta y carne.
+        Para las reglas del menú. Marca todos los que lleve: la lasaña es pasta y carne.
       </p>
       <div
         className="flex flex-wrap gap-2"
@@ -325,6 +345,17 @@ export default function AddDishModal({
             <ChipGroup label="¿Cuándo se come?" options={DAY_TYPES} value={dayType} onChange={setDayType} />
             <ChipGroup label="Momento del día" options={MEAL_TYPES} value={formMealType} onChange={setFormMealType} />
             <IngredientGroup />
+          </>
+        )}
+
+        {isCatalog && (
+          <>
+            <ShoppingIngredientsEditor
+              value={shoppingIngredients}
+              onChange={setShoppingIngredients}
+              catalog={ingredientCatalog}
+            />
+            <RecipeUrlField id="recipe-url" value={recipeUrl} onChange={setRecipeUrl} />
           </>
         )}
 

@@ -52,10 +52,10 @@ send failures.
 
 | Event | Properties | Where |
 |---|---|---|
-| `household_created` | — | `OnboardingScreen.tsx:139` |
-| `household_joined` | — | `OnboardingScreen.tsx:164` |
-| `household_setup_failed` | `mode` (`create` \| `join`), `reason` | `OnboardingScreen.tsx:148`, `:169` |
-| `catalog_seeded` | `dish_count` (dishes that were missing and got seeded) | `App.tsx:663` |
+| `household_created` | — | `OnboardingScreen.tsx:158` |
+| `household_joined` | — | `OnboardingScreen.tsx:183` |
+| `household_setup_failed` | `mode` (`create` \| `join`), `reason` | `OnboardingScreen.tsx:167`, `:188` |
+| `catalog_seeded` | `dish_count` (dishes that were missing and got seeded) | `App.tsx:789` |
 
 The funnel for a new household is: `login_otp_requested` → `session_signed_in` →
 `household_created` (or `household_joined`) → `catalog_seeded` → `menu_generated`.
@@ -64,11 +64,11 @@ The funnel for a new household is: `login_otp_requested` → `session_signed_in`
 
 | Event | Properties | Where |
 |---|---|---|
-| `menu_generated` | `week_start`, `trigger` (`manual` \| `next_week` \| `auto_initial_load`) | `App.tsx:248`, `:356` |
-| `menu_degraded` | `unmet` (labels of the rules that could not be met, comma-separated; `rule_combination` when no single rule is to blame) | `App.tsx:177` |
+| `menu_generated` | `week_start`, `trigger` (`manual` \| `next_week` \| `auto_initial_load`) | `App.tsx:339`, `:447` |
+| `menu_degraded` | `unmet` (labels of the rules that could not be met, comma-separated; `rule_combination` when no single rule is to blame) | `App.tsx:268` |
 | `week_regenerated` | — | `FamilyView.tsx:72` |
-| `week_viewed` | `offset` (weeks relative to the current one: `-1`, `0`, `1`) | `App.tsx:455` |
-| `next_week_menu_viewed` | — | `App.tsx:465` |
+| `week_viewed` | `offset` (weeks relative to the current one: `-1`, `0`, `1`) | `App.tsx:546` |
+| `next_week_menu_viewed` | — | `App.tsx:556` |
 
 `menu_generated` with `trigger: 'auto_initial_load'` is the menu created automatically
 when the app opens with no stored week. Nobody chose it, so keep it apart when measuring
@@ -81,11 +81,11 @@ If it climbs as new households arrive, the problem is in the rules, not in the i
 
 | Event | Properties | Where |
 |---|---|---|
-| `day_editor_opened` | `surface` (`sheet` on mobile \| `panel` on desktop) | `App.tsx:862` |
-| `menu_item_edited` | `meal_type` (`lunch` \| `dinner`), `dish_slot` (`starter` \| `main` \| `single`) | `App.tsx:546` |
-| `day_format_changed` | `meal_type`, `action` (`add` \| `remove` a first course) | `App.tsx:555`, `:560` |
-| `days_swapped` | `surface` (`sheet` on mobile and tablet \| `panel` on desktop) | `App.tsx:567` |
-| `days_swap_undone` | — | `App.tsx:577` |
+| `day_editor_opened` | `surface` (`sheet` on mobile \| `panel` on desktop) | `App.tsx:1008` |
+| `menu_item_edited` | `meal_type` (`lunch` \| `dinner`), `dish_slot` (`starter` \| `main` \| `single`) | `App.tsx:637` |
+| `day_format_changed` | `meal_type`, `action` (`add` \| `remove` a first course) | `App.tsx:646`, `:651` |
+| `days_swapped` | `surface` (`sheet` on mobile and tablet \| `panel` on desktop) | `App.tsx:658` |
+| `days_swap_undone` | — | `App.tsx:668` |
 
 `days_swapped` is the whole day (lunch and dinner) traded with another day of the same
 week, from "⇄ Intercambiar con otro día" in the day editor. `days_swap_undone` is the
@@ -96,12 +96,46 @@ means the swap is being hit by mistake or does something people did not expect.
 
 | Event | Properties | Where |
 |---|---|---|
-| `dish_added` | `category` (`starter` \| `main` \| `single`) | `App.tsx:605`, `:627` |
-| `dish_edited` | `category` | `App.tsx:621` |
-| `dish_deleted` | — | `App.tsx:644` |
+| `dish_added` | `category` (`starter` \| `main` \| `single`) | `App.tsx:696`, `:726` |
+| `dish_edited` | `category` | `App.tsx:717` |
+| `dish_deleted` | — | `App.tsx:770` |
+| `dish_ingredients_saved` | `ingredient_count` (staples included), `has_recipe` | `App.tsx:730` |
+| `recipe_link_opened` | `domain` (host without `www.`), `is_starter` (bool: still the recipe Ñam suggests for that dish) | `DishSheet.tsx:162` |
+| `starter_ingredients_seeded` | `dish_count` (starter dishes that got their ingredients and recipe; `0` when none needed it) | `App.tsx:230` |
+
+`starter_ingredients_seeded` fires once per household, the first time the app loads after
+the shopping-list release (or right after onboarding). Dishes added later through "Añadir
+el catálogo sugerido" get their ingredients too, without a new event.
 
 `dish_added` fires from two places: creating a dish from the catalog, and saving an
 improvised one while editing the menu ("¿Lo guardamos?").
+
+## Shopping list
+
+| Event | Properties | Where |
+|---|---|---|
+| `shopping_list_opened` | `has_list` (a list in progress was opened rather than the day picker) | `App.tsx:904` |
+| `shopping_list_generated` | `trigger` (`new` \| `regenerate`), `previous` (`none` \| `active` \| `all_checked` \| `expired`), `days_selected`, `days_included`, `days_skipped`, `item_count`, `missing_dish_count` | `useShoppingList.ts:161` |
+| `shopping_list_stale_shown` | — | `ShoppingListView.tsx:94` |
+| `shopping_item_checked` | `checked` (bool), `origin` (`menu` \| `manual`) | `useShoppingList.ts:192` |
+| `shopping_list_completed` | `item_count`, `days_left` (days of the list still ahead when the last item was ticked) | `useShoppingList.ts:196` |
+| `shopping_item_added_manually` | `from_catalog` (bool: matched an ingredient of the household) | `useShoppingList.ts:236` |
+| `shopping_item_removed` | `marked_staple` (bool: "Siempre lo tengo en casa") | `useShoppingList.ts:276` |
+| `shopping_list_copied` | `item_count` (pending items copied) | `ShoppingListView.tsx:118` |
+| `shopping_list_shared` | `item_count` | `ShoppingListView.tsx:127` |
+| `ingredient_guide_started` | `missing_dish_count` (dishes on the chosen days with no ingredients, or gone from Platos), `mode` (`full`: first time, with the introduction \| `light`: the notice, or "Completar" on the list) | `IngredientGuide.tsx:75` |
+| `ingredient_guide_dish_saved` | `ingredient_count` (staples included) | `IngredientGuide.tsx:127` |
+| `ingredient_guide_finished` | `completed`, `skipped` (dishes saved and not saved), `exit` (`done` \| `later`: "Terminar más tarde" \| `not_now`: generated without completing \| `closed`: closed without a list) | `ShoppingOverlay.tsx:139` |
+
+`shopping_list_opened` fires from the button on Semana. With `has_list: false` the household had
+no list in progress (none, or a closed one) and landed on the day picker.
+
+The `ingredient_guide_*` events cover what happens when the chosen days include dishes with no
+ingredients (spec §5.3). `dish_ingredients_saved` does not fire for dishes completed in the
+guide; `ingredient_guide_dish_saved` does.
+
+`shopping_list_completed` is the "¡Todo comprado!" moment. It fires for the member who ticks the
+last item, so a household that shops together counts once per list.
 
 ## Household and feedback
 
