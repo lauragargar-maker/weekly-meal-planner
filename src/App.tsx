@@ -24,6 +24,11 @@ import {
 import { describeDegradedMenu } from './lib/degradedMenu'
 import { swapDays } from './lib/swapDays'
 import { IngredientDraft, saveDishIngredients } from './lib/dishIngredients'
+import { applyStarterSeed } from './lib/seedIngredients'
+import { useShoppingList } from './lib/useShoppingList'
+import { listStatus } from './lib/shoppingList'
+import ShoppingListButton from './components/ShoppingListButton'
+import ShoppingOverlay, { ShoppingMode } from './components/ShoppingOverlay'
 import { STARTER_CATALOG } from './data/starterCatalog'
 import { identifyHousehold, trackEvent } from './lib/analytics'
 import { WEEK_RANGE, formatLocalDate, weekEndFor, weekKeyFor, weekStartFor } from './utils/weekStart'
@@ -138,7 +143,11 @@ function App({ household }: { household: Household }) {
    * a failure here only leaves Platos without ingredients rather than taking
    * the whole app down.
    */
-  const loadShoppingIngredients = useCallback(async () => {
+  // Returns what it loaded, for a caller that needs it before the next render.
+  const loadShoppingIngredients = useCallback(async (): Promise<{
+    catalog: ShoppingIngredient[]
+    links: DishIngredient[]
+  } | null> => {
     try {
       const [catalogResult, linksResult] = await Promise.all([
         supabase.from('ingredients').select('*').eq('household_id', householdId).order('name'),
@@ -146,16 +155,33 @@ function App({ household }: { household: Household }) {
       ])
       if (catalogResult.error) throw catalogResult.error
       if (linksResult.error) throw linksResult.error
-      setIngredientCatalog((catalogResult.data as ShoppingIngredient[]) || [])
-      setDishIngredients((linksResult.data as DishIngredient[]) || [])
+      const fresh = {
+        catalog: (catalogResult.data as ShoppingIngredient[]) || [],
+        links: (linksResult.data as DishIngredient[]) || [],
+      }
+      setIngredientCatalog(fresh.catalog)
+      setDishIngredients(fresh.links)
+      return fresh
     } catch (err) {
       console.error('Error loading shopping ingredients:', err)
+      return null
     }
   }, [householdId])
 
   useEffect(() => {
     loadShoppingIngredients()
   }, [loadShoppingIngredients])
+
+  // The household's shopping list (docs/shopping-list-spec.md §5) and which of
+  // its two screens is open over Semana, if any.
+  const shopping = useShoppingList({
+    householdId,
+    userId: session?.user?.id ?? null,
+    catalog: ingredientCatalog,
+    onIngredientsChanged: loadShoppingIngredients,
+  })
+  const [shoppingMode, setShoppingMode] = useState<ShoppingMode | null>(null)
+  const shoppingStatus = shopping.list ? listStatus(shopping.list, shopping.items, new Date()) : null
 
   const loadDishIdeas = useCallback(async () => {
     try {
@@ -172,6 +198,42 @@ function App({ household }: { household: Household }) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los platos')
     }
   }, [householdId])
+
+  // Once per household, the starter dishes get their ingredients and recipe
+  // (docs/shopping-list-spec.md §6.2): new households right after onboarding,
+  // existing ones on the first load after the release. The flag is read here
+  // rather than with the household so a missing column cannot stop the app
+  // from loading. A failure leaves the flag unset, and the next load retries.
+  const seedStartedRef = useRef(false)
+  useEffect(() => {
+    // With no dishes there is nothing to fill, and an empty list may only mean
+    // the load failed; marking the household then would skip it for good.
+    if (loading || error || dishIdeas.length === 0 || seedStartedRef.current) return
+    seedStartedRef.current = true
+    const dishes = dishIdeas
+    ;(async () => {
+      try {
+        const { data, error: flagError } = await supabase
+          .from('households')
+          .select('ingredients_seeded_at')
+          .eq('id', householdId)
+          .single()
+        if (flagError) throw flagError
+        if ((data as { ingredients_seeded_at: string | null }).ingredients_seeded_at) return
+
+        const filled = await applyStarterSeed(supabase, householdId, dishes)
+        const { error: markError } = await supabase
+          .from('households')
+          .update({ ingredients_seeded_at: new Date().toISOString() })
+          .eq('id', householdId)
+        if (markError) throw markError
+        trackEvent('starter_ingredients_seeded', { dish_count: filled })
+        if (filled > 0) await Promise.all([loadDishIdeas(), loadShoppingIngredients()])
+      } catch (err) {
+        console.error('Error seeding starter ingredients:', err)
+      }
+    })()
+  }, [loading, error, dishIdeas, householdId, loadDishIdeas, loadShoppingIngredients])
 
   const generateNewMenu = useCallback(async (
     weekStart: Date,
@@ -677,6 +739,26 @@ function App({ household }: { household: Household }) {
     }
   }, [householdId, ingredientCatalog, loadDishIdeas, loadShoppingIngredients])
 
+  // A dish completed in the shopping list's guided flow (§5.3): only its
+  // ingredients and recipe change. Throws, so the step can say it failed.
+  const handleCompleteDish = useCallback(async (
+    dish: DishIdea,
+    ingredients: IngredientDraft[],
+    recipeUrl: string | null
+  ) => {
+    if (recipeUrl !== (dish.recipe_url ?? null)) {
+      const { error } = await supabase
+        .from('dish_ideas')
+        .update({ recipe_url: recipeUrl, updated_at: new Date().toISOString() })
+        .eq('id', dish.id)
+        .eq('household_id', householdId)
+      if (error) throw error
+    }
+    await saveDishIngredients(supabase, householdId, dish.id, ingredients, ingredientCatalog)
+    const [fresh] = await Promise.all([loadShoppingIngredients(), loadDishIdeas()])
+    return fresh
+  }, [householdId, ingredientCatalog, loadDishIdeas, loadShoppingIngredients])
+
   const handleDeleteDish = useCallback(async (dishId: string) => {
     try {
       const { error } = await supabase
@@ -699,17 +781,25 @@ function App({ household }: { household: Household }) {
     const missing = STARTER_CATALOG.filter((d) => !existingNames.has(d.name.toLowerCase()))
     if (missing.length === 0) return
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('dish_ideas')
         .insert(missing.map((dish) => ({ ...dish, household_id: householdId })))
+        .select('id, name, recipe_url')
       if (error) throw error
-      await loadDishIdeas()
       trackEvent('catalog_seeded', { dish_count: missing.length })
+      // The dishes are in; their ingredients are a bonus that must not turn a
+      // successful seed into an error message.
+      try {
+        await applyStarterSeed(supabase, householdId, (data ?? []) as DishIdea[])
+      } catch (seedErr) {
+        console.error('Error seeding starter ingredients:', seedErr)
+      }
+      await Promise.all([loadDishIdeas(), loadShoppingIngredients()])
     } catch (err) {
       console.error('Error seeding starter catalog:', err)
       setError('No se pudo añadir el catálogo sugerido')
     }
-  }, [dishIdeas, householdId, loadDishIdeas])
+  }, [dishIdeas, householdId, loadDishIdeas, loadShoppingIngredients])
 
   if (loading) {
     return (
@@ -805,6 +895,16 @@ function App({ household }: { household: Household }) {
             <span className="hidden text-[13px] font-extrabold text-tinta-500 md:inline">
               {household.name}
             </span>
+            {view === 'agenda' && shopping.loaded && (
+              <ShoppingListButton
+                pending={shoppingStatus === 'active' ? shopping.items.filter((item) => !item.checked).length : null}
+                onClick={() => {
+                  // A list in progress opens; a closed one or none leads to the picker (§5.10).
+                  setShoppingMode(shoppingStatus === 'active' ? 'list' : 'picker')
+                  trackEvent('shopping_list_opened', { has_list: shoppingStatus === 'active' })
+                }}
+              />
+            )}
             {session?.user && (
               <button
                 onClick={() => setFeedbackOpen(true)}
@@ -993,6 +1093,33 @@ function App({ household }: { household: Household }) {
             Deshacer
           </button>
         </div>
+      )}
+
+      {shoppingMode && (
+        <ShoppingOverlay
+          mode={shoppingMode}
+          onModeChange={setShoppingMode}
+          shopping={shopping}
+          status={shoppingStatus}
+          userId={session?.user?.id ?? null}
+          dishes={dishIdeas}
+          links={dishIngredients}
+          catalog={ingredientCatalog}
+          onCompleteDish={handleCompleteDish}
+          menusVersion={Object.values(menusByWeek)
+            .map((menu) => `${menu.id}@${menu.updated_at}`)
+            .join('|')}
+          onShowNextWeek={() => {
+            setShoppingMode(null)
+            goTo('agenda')
+            if (weekOffset === 0) handleWeekNav(1)
+          }}
+          onGoToPlatos={() => {
+            setShoppingMode(null)
+            goTo('catalog')
+          }}
+          onClose={() => setShoppingMode(null)}
+        />
       )}
 
       {feedbackOpen && session?.user && (

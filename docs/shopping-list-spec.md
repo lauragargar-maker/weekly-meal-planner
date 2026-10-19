@@ -253,12 +253,14 @@ Al pulsar "Generar lista", Ñam reúne los platos de los días elegidos que tien
 
    Botones: "Empezar" y "Ahora no, generar sin ellos".
 2. **Un paso por plato**, con un indicador "2 de 5". Cada paso muestra el nombre del plato, el editor de ingredientes de §4.2 (autocompletado y chips) y el campo de receta, que es opcional. El paso incluye una ayuda breve la primera vez: qué es un básico de casa y que hay que apuntar todo lo que se compra, salsas incluidas. Botones: "Siguiente" (guarda el plato), "Saltar este plato" y "Terminar más tarde" (genera la lista con lo que haya).
-3. Al terminar o salir del flujo por cualquier vía, se marca `shopping_guide_seen_at = now()` y se genera la lista.
+3. Al terminar o salir del flujo por cualquier vía, se marca `shopping_guide_seen_at = now()` y se genera la lista. La única excepción es cerrar con ✕, Esc o un clic fuera: se vuelve al selector con los días como estaban, sin generar nada, y la guía cuenta igualmente como vista.
+
+Cada plato se presenta con la primera comida en la que sale, por ejemplo *"Cena del jueves 15"*, o *"Cena del jueves 15 y 2 más"* si se repite. "Siguiente" se habilita en cuanto el plato tiene al menos un ingrediente. "Terminar más tarde" guarda el plato en curso si ya tiene ingredientes.
 
 **Si faltan y el hogar ya vio la guía**, se muestra un **aviso ligero** (una hoja inferior):
 > *"{n} platos no tienen ingredientes: {nombres}. No saldrán en la lista."*
 
-Botones: "Completarlos ahora" (abre los mismos pasos del flujo guiado, sin la introducción) y "Generar igualmente".
+Botones: "Completarlos ahora" (abre los mismos pasos del flujo guiado, sin la introducción) y "Generar igualmente". La hoja se abre sobre el selector, así que cerrarla devuelve a los días elegidos.
 
 **Platos no encontrados** (renombrados o borrados): aparecen en el aviso con la nota *"ya no está en tus platos"* y no tienen paso en el flujo guiado.
 
@@ -285,7 +287,7 @@ Es lógica pura y va en `src/lib/shoppingList.ts` con tests unitarios: fusión, 
 
   Botón: "Regenerar".
 - **Días sin menú**, si `skipped_days` no está vacío: *"No incluye {días}: no tenían menú."*
-- **Platos sin información**, si `missing_dishes` no está vacío: *"No incluye ingredientes de {platos}."* Botón: "Completar" (abre el flujo de §5.3 y después ofrece regenerar).
+- **Platos sin información**, si `missing_dishes` no está vacío: *"No incluye ingredientes de {platos}."* Botón: "Completar", que abre los pasos de §5.3 sin introducción. Al terminar, la lista se **rehace sola** con los mismos días, conservando los marcados y los artículos a mano (§5.6). Si los platos ya se completaron desde Platos, "Completar" rehace la lista directamente. Si solo quedan platos que ya no existen, lleva a Platos.
 
 **Cuerpo**
 - Los artículos van **agrupados por sección** (D6), en el orden de §3.5. Las secciones vacías no se muestran.
@@ -333,6 +335,8 @@ Al abrir la lista, y cuando llega un evento realtime de `weekly_menus` o de los 
 - cambia un plato de un día incluido (editar día, intercambiar días, regenerar semana);
 - se genera el menú de un día que estaba en `skipped_days`;
 - cambian los ingredientes de compra de un plato incluido, incluido marcar o desmarcar un básico.
+
+Excepción: marcar un artículo como "Siempre lo tengo en casa" desde la propia lista no cuenta como cambio. La lista ya lo refleja, así que se guarda la huella nueva junto con el cambio y no aparece el aviso. Si la lista ya estaba desactualizada, sigue estándolo.
 
 La lista **nunca cambia sola**: solo cambia al pulsar "Regenerar".
 
@@ -454,7 +458,7 @@ Se añaden eventos a `docs/analytics-events.md`, en una sección nueva "Lista de
 | `shopping_list_shared` | `item_count` |
 | `ingredient_guide_started` | `missing_dish_count`, `mode` (`full` \| `light`) |
 | `ingredient_guide_dish_saved` | `ingredient_count` |
-| `ingredient_guide_finished` | `completed`, `skipped`, `exit` (`done` \| `later` \| `not_now`) |
+| `ingredient_guide_finished` | `completed`, `skipped`, `exit` (`done` \| `later` \| `not_now` \| `closed`) |
 | `dish_ingredients_saved` | `ingredient_count`, `has_recipe` (desde el editor de Platos) |
 | `recipe_link_opened` | `domain`, `is_starter` |
 

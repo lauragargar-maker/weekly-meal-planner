@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isValidRecipeUrl, normalizeRecipeUrl, recipeSiteName } from './recipeLinks'
+import { isValidRecipeUrl, normalizeRecipeUrl, recipeDomain, recipeSiteName } from './recipeLinks'
 
 describe('normalizeRecipeUrl', () => {
   it('keeps an https link as it is', () => {
@@ -45,6 +45,11 @@ describe('recipeSiteName', () => {
   it('names Google Drive and Docs', () => {
     expect(recipeSiteName('https://drive.google.com/file/d/abc/view')).toBe('Google Drive')
     expect(recipeSiteName('https://docs.google.com/document/d/abc')).toBe('Google Docs')
+  })
+
+  it('gives the bare domain for analytics, and nothing for a non-link', () => {
+    expect(recipeDomain('https://www.bonviveur.es/x')).toBe('bonviveur.es')
+    expect(recipeDomain('no es un enlace')).toBe('')
   })
 
   it('falls back to the bare host', () => {

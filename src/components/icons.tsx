@@ -69,3 +69,14 @@ export function IconFeedback({ size = 23, className }: IconProps) {
     </svg>
   )
 }
+
+/** A shopping trolley — the shopping list. */
+export function IconCart({ size = 22, className }: IconProps) {
+  return (
+    <svg {...base} width={size} height={size} strokeWidth={2.2} className={className}>
+      <path d="M3 4h2.2l2.3 11h10.8l2-8H6.4" />
+      <circle cx="9.5" cy="19.5" r="1.4" />
+      <circle cx="17" cy="19.5" r="1.4" />
+    </svg>
+  )
+}

@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { DishIdea, ShoppingIngredient } from '../types'
 import { formatIngredients } from '../lib/ingredients'
-import { recipeSiteName } from '../lib/recipeLinks'
+import { recipeDomain, recipeSiteName } from '../lib/recipeLinks'
+import { STARTER_DISH_DETAILS } from '../data/starterDishDetails'
+import { trackEvent } from '../lib/analytics'
 
 interface DishSheetProps {
   dish: DishIdea
@@ -155,6 +157,14 @@ export default function DishSheet({ dish, ingredients, onEdit, onClose }: DishSh
             </h3>
             <a
               href={dish.recipe_url}
+              onClick={() => {
+                const url = dish.recipe_url ?? ''
+                trackEvent('recipe_link_opened', {
+                  domain: recipeDomain(url),
+                  // Still the recipe Ñam suggests for this dish, rather than one of the household's.
+                  is_starter: STARTER_DISH_DETAILS[dish.name]?.recipe_url === url,
+                })
+              }}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-primary mt-3 w-full justify-between"
