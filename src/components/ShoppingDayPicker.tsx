@@ -13,6 +13,12 @@ import {
 } from '../lib/shoppingList'
 
 interface ShoppingDayPickerProps {
+  /**
+   * Whether the guided flow is open over the picker: as a sheet, with the
+   * picker showing under it, or filling the screen, with the picker hidden.
+   * Either way Escape is the guide's.
+   */
+  covered?: 'none' | 'sheet' | 'full'
   /** This week's and next week's menus; null while they load. */
   menus: WeeklyMenu[] | null
   /** Set when the household has a closed list, to reach it from here. */
@@ -34,6 +40,7 @@ type Preset = 'default' | 'week' | 'none' | 'custom'
  * out (D3) — this screen never generates a menu.
  */
 export default function ShoppingDayPicker({
+  covered = 'none',
   menus,
   previousRange,
   replacesActiveList,
@@ -59,13 +66,13 @@ export default function ShoppingDayPicker({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || busy) return
+      if (e.key !== 'Escape' || busy || covered !== 'none') return
       if (confirming) setConfirming(false)
       else onClose()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, confirming, busy])
+  }, [onClose, confirming, busy, covered])
 
   const byDay = useMemo(() => menuItemsByDay(menus ?? []), [menus])
   const dishesOn = (day: string) => dishesOfDay(byDay.get(day) ?? []).map((d) => d.name)
@@ -104,6 +111,9 @@ export default function ShoppingDayPicker({
     setFailed(false)
     try {
       await onGenerate(withMenu.concat(withoutMenu))
+      // Still here when the guided flow opened instead of the list.
+      setBusy(false)
+      setConfirming(false)
     } catch (err) {
       console.error('Error generating shopping list:', err)
       setFailed(true)
@@ -120,7 +130,9 @@ export default function ShoppingDayPicker({
 
   return (
     <div
-      className="fixed inset-0 z-30 flex flex-col overflow-y-auto bg-crema-100 lg:items-center lg:justify-center lg:overflow-hidden lg:bg-[rgba(38,33,28,0.5)] lg:p-7"
+      className={`fixed inset-0 z-30 flex-col overflow-y-auto bg-crema-100 lg:items-center lg:justify-center lg:overflow-hidden lg:bg-[rgba(38,33,28,0.5)] lg:p-7 ${
+        covered === 'full' ? 'hidden' : 'flex'
+      }`}
       // On desktop the picker floats over a backdrop; a click on it closes.
       onClick={(e) => {
         if (e.target === e.currentTarget && !busy) onClose()

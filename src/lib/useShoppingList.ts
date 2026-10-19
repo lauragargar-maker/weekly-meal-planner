@@ -303,6 +303,30 @@ export function useShoppingList({ householdId, userId, catalog, onIngredientsCha
     }
   }, [items, fail])
 
+  /** Whether the household has already been through the guided flow (§5.3). */
+  const fetchGuideSeen = useCallback(async (): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('households')
+      .select('shopping_guide_seen_at')
+      .eq('id', householdId)
+      .single()
+    // Unknown counts as seen: the light notice is the one that never gets in the way.
+    if (error) {
+      console.error('Error reading the shopping guide flag:', error)
+      return true
+    }
+    return Boolean((data as { shopping_guide_seen_at: string | null }).shopping_guide_seen_at)
+  }, [householdId])
+
+  const markGuideSeen = useCallback(async () => {
+    const { error } = await supabase
+      .from('households')
+      .update({ shopping_guide_seen_at: new Date().toISOString() })
+      .eq('id', householdId)
+      .is('shopping_guide_seen_at', null)
+    if (error) console.error('Error marking the shopping guide as seen:', error)
+  }, [householdId])
+
   return {
     list,
     items,
@@ -311,6 +335,8 @@ export function useShoppingList({ householdId, userId, catalog, onIngredientsCha
     clearSaveError: () => setSaveError(null),
     reload,
     fetchMenus,
+    fetchGuideSeen,
+    markGuideSeen,
     generate,
     toggle,
     addManual,

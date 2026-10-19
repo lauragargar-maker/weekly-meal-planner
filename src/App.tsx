@@ -143,7 +143,11 @@ function App({ household }: { household: Household }) {
    * a failure here only leaves Platos without ingredients rather than taking
    * the whole app down.
    */
-  const loadShoppingIngredients = useCallback(async () => {
+  // Returns what it loaded, for a caller that needs it before the next render.
+  const loadShoppingIngredients = useCallback(async (): Promise<{
+    catalog: ShoppingIngredient[]
+    links: DishIngredient[]
+  } | null> => {
     try {
       const [catalogResult, linksResult] = await Promise.all([
         supabase.from('ingredients').select('*').eq('household_id', householdId).order('name'),
@@ -151,10 +155,16 @@ function App({ household }: { household: Household }) {
       ])
       if (catalogResult.error) throw catalogResult.error
       if (linksResult.error) throw linksResult.error
-      setIngredientCatalog((catalogResult.data as ShoppingIngredient[]) || [])
-      setDishIngredients((linksResult.data as DishIngredient[]) || [])
+      const fresh = {
+        catalog: (catalogResult.data as ShoppingIngredient[]) || [],
+        links: (linksResult.data as DishIngredient[]) || [],
+      }
+      setIngredientCatalog(fresh.catalog)
+      setDishIngredients(fresh.links)
+      return fresh
     } catch (err) {
       console.error('Error loading shopping ingredients:', err)
+      return null
     }
   }, [householdId])
 
@@ -729,6 +739,26 @@ function App({ household }: { household: Household }) {
     }
   }, [householdId, ingredientCatalog, loadDishIdeas, loadShoppingIngredients])
 
+  // A dish completed in the shopping list's guided flow (§5.3): only its
+  // ingredients and recipe change. Throws, so the step can say it failed.
+  const handleCompleteDish = useCallback(async (
+    dish: DishIdea,
+    ingredients: IngredientDraft[],
+    recipeUrl: string | null
+  ) => {
+    if (recipeUrl !== (dish.recipe_url ?? null)) {
+      const { error } = await supabase
+        .from('dish_ideas')
+        .update({ recipe_url: recipeUrl, updated_at: new Date().toISOString() })
+        .eq('id', dish.id)
+        .eq('household_id', householdId)
+      if (error) throw error
+    }
+    await saveDishIngredients(supabase, householdId, dish.id, ingredients, ingredientCatalog)
+    const [fresh] = await Promise.all([loadShoppingIngredients(), loadDishIdeas()])
+    return fresh
+  }, [householdId, ingredientCatalog, loadDishIdeas, loadShoppingIngredients])
+
   const handleDeleteDish = useCallback(async (dishId: string) => {
     try {
       const { error } = await supabase
@@ -1075,6 +1105,7 @@ function App({ household }: { household: Household }) {
           dishes={dishIdeas}
           links={dishIngredients}
           catalog={ingredientCatalog}
+          onCompleteDish={handleCompleteDish}
           menusVersion={Object.values(menusByWeek)
             .map((menu) => `${menu.id}@${menu.updated_at}`)
             .join('|')}
