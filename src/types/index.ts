@@ -98,6 +98,49 @@ export interface DishIngredient {
   position: number
 }
 
+/** Where a shopping-list item came from: one dish on one day. */
+export interface ShoppingSource {
+  dish: string
+  /** `YYYY-MM-DD` */
+  day: string
+  meal: 'lunch' | 'dinner'
+}
+
+/**
+ * The household's shopping list (docs/shopping-list-spec.md §3.7). One per
+ * household; a new one replaces it. Whether it is in progress or closed is
+ * worked out from its days and items (`listStatus`), never stored.
+ */
+export interface ShoppingList {
+  id: string
+  household_id: string
+  /** Days chosen that had a menu, `YYYY-MM-DD`, ascending. */
+  days: string[]
+  /** Days chosen that had no menu. */
+  skipped_days: string[]
+  /** Dishes in those days with no ingredients, or no longer in Platos. */
+  missing_dishes: string[]
+  fingerprint: string
+  generated_by: string | null
+  generated_at: string
+}
+
+/** One line of the list (§3.8). Name and section are copies: the list is frozen. */
+export interface ShoppingListItem {
+  id: string
+  list_id: string
+  household_id: string
+  ingredient_id: string | null
+  name: string
+  section: StoreSection
+  origin: 'menu' | 'manual'
+  sources: ShoppingSource[]
+  checked: boolean
+  checked_by: string | null
+  checked_at: string | null
+  created_at: string
+}
+
 export interface WeeklyMenu {
   id: string
   household_id: string

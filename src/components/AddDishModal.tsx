@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { DishIdea, Ingredient, NewDishIdea, ShoppingIngredient } from '../types'
 import { INGREDIENTS } from '../lib/ingredients'
 import { IngredientDraft } from '../lib/dishIngredients'
-import { RECIPE_URL_MAX_LENGTH, normalizeRecipeUrl, recipeSiteName } from '../lib/recipeLinks'
+import { normalizeRecipeUrl } from '../lib/recipeLinks'
+import RecipeUrlField from './RecipeUrlField'
 import ShoppingIngredientsEditor from './ShoppingIngredientsEditor'
 
 interface AddDishModalProps {
@@ -354,35 +355,7 @@ export default function AddDishModal({
               onChange={setShoppingIngredients}
               catalog={ingredientCatalog}
             />
-            <div className="mt-[18px] lg:mt-5">
-              <label className="label-nam" htmlFor="recipe-url">
-                Receta recomendada{' '}
-                <span className="normal-case tracking-normal text-tinta-400">(opcional)</span>
-              </label>
-              <input
-                id="recipe-url"
-                type="url"
-                inputMode="url"
-                value={recipeUrl}
-                maxLength={RECIPE_URL_MAX_LENGTH}
-                onChange={(e) => setRecipeUrl(e.target.value)}
-                placeholder="Enlace a una web de recetas o a tu Drive"
-                aria-invalid={recipeUrlInvalid}
-                aria-describedby="recipe-url-help"
-                className={`input-nam !bg-crema-100 lg:!bg-white ${recipeUrlInvalid ? '!border-rojo-500' : ''}`}
-              />
-              {recipeUrlInvalid ? (
-                <p id="recipe-url-help" className="error-nam">
-                  Ese enlace no parece una dirección web. Cópialo desde el navegador o desde Drive.
-                </p>
-              ) : (
-                <p id="recipe-url-help" className="help-nam">
-                  {normalizedRecipeUrl
-                    ? `Se verá como «Ver receta en ${recipeSiteName(normalizedRecipeUrl)}».`
-                    : 'Un enlace a la receta en una web de cocina.'}
-                </p>
-              )}
-            </div>
+            <RecipeUrlField id="recipe-url" value={recipeUrl} onChange={setRecipeUrl} />
           </>
         )}
 
