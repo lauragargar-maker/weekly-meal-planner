@@ -14,7 +14,7 @@ interface AddDishModalProps {
   dishIdeas: DishIdea[]
   /** The dish being edited, when opened from the catalogue. */
   dish?: DishIdea
-  /** The household's shopping ingredients, for the catalogue editor's suggestions. */
+  /** The household's shopping ingredients, for the suggestions of any dish that will be stored. */
   ingredientCatalog?: ShoppingIngredient[]
   /** What the dish being edited takes today. */
   initialIngredients?: IngredientDraft[]
@@ -23,7 +23,8 @@ interface AddDishModalProps {
     name: string,
     category: 'starter' | 'main' | 'single',
     persist: boolean,
-    dishData?: NewDishIdea
+    dishData?: NewDishIdea,
+    ingredients?: IngredientDraft[]
   ) => void
   onSaveDish?: (dishData: NewDishIdea, dishId?: string, ingredients?: IngredientDraft[]) => void
   onDeleteDish?: (dishId: string) => void
@@ -115,7 +116,7 @@ export default function AddDishModal({
   const needsIngredients = willBeStored && mainIngredients.length === 0
   const trimmedRecipeUrl = recipeUrl.trim()
   const normalizedRecipeUrl = normalizeRecipeUrl(trimmedRecipeUrl)
-  const recipeUrlInvalid = isCatalog && trimmedRecipeUrl !== '' && normalizedRecipeUrl === null
+  const recipeUrlInvalid = willBeStored && trimmedRecipeUrl !== '' && normalizedRecipeUrl === null
   const canSubmit = (isCatalog ? canProceed : canProceed && mode !== null) && !needsIngredients && !recipeUrlInvalid
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,9 +133,7 @@ export default function AddDishModal({
     main_ingredients: INGREDIENTS.filter(({ value }) => mainIngredients.includes(value)).map(
       ({ value }) => value
     ),
-    // Only the catalogue editor shows the field; a dish saved from the menu
-    // keeps whatever it had.
-    ...(isCatalog ? { recipe_url: normalizedRecipeUrl } : {}),
+    ...(willBeStored ? { recipe_url: normalizedRecipeUrl } : {}),
   })
 
   const toggleIngredient = (ingredient: Ingredient) =>
@@ -153,7 +152,7 @@ export default function AddDishModal({
     if (mode === 'instance') {
       onConfirm?.(trimmedName, slot, false)
     } else {
-      onConfirm?.(trimmedName, category, true, dishData())
+      onConfirm?.(trimmedName, category, true, dishData(), shoppingIngredients)
     }
   }
 
@@ -348,7 +347,10 @@ export default function AddDishModal({
           </>
         )}
 
-        {isCatalog && (
+        {/* Every dish that reaches the catalogue gets asked what it takes, so
+            one saved from the menu does not land in Platos as "sin
+            ingredientes" and need the shopping list's guided flow later. */}
+        {willBeStored && (
           <>
             <ShoppingIngredientsEditor
               value={shoppingIngredients}

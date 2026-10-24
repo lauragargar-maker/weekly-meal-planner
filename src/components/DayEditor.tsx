@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from 'react'
-import { DishIdea, Ingredient, MenuItem, NewDishIdea } from '../types'
+import { DishIdea, Ingredient, MenuItem, NewDishIdea, ShoppingIngredient } from '../types'
+import { IngredientDraft } from '../lib/dishIngredients'
 import { formatDayName } from '../utils/menuGenerator'
 import {
   CourseSlot,
@@ -20,6 +21,8 @@ interface DayEditorProps {
   lunch: MenuItem | null
   dinner: MenuItem | null
   dishIdeas: DishIdea[]
+  /** The household's shopping ingredients, for a new dish saved to the catalogue. */
+  ingredientCatalog: ShoppingIngredient[]
   rules: HouseholdRules
   /** Modal bottom sheet below 1024 px, panel beside the week above it (§0). */
   surface: 'sheet' | 'panel'
@@ -27,7 +30,7 @@ interface DayEditorProps {
   onReplaceCourse: (mealType: MealType, slot: CourseSlot, dishName: string) => void
   onAddFirstCourse: (mealType: MealType, dishName: string) => void
   onRemoveFirstCourse: (mealType: MealType) => void
-  onAddNewDish: (dishData: NewDishIdea) => void
+  onAddNewDish: (dishData: NewDishIdea, ingredients: IngredientDraft[]) => void
   /** The other days of the week, for "Intercambiar con otro día". */
   swapCandidates: SwapCandidate[]
   /** Swaps this whole day with `otherDay`. The caller closes the editor. */
@@ -67,6 +70,7 @@ export default function DayEditor({
   lunch,
   dinner,
   dishIdeas,
+  ingredientCatalog,
   rules,
   surface,
   onClose,
@@ -368,12 +372,13 @@ export default function DayEditor({
       slot={pick.slot}
       mealType={pick.mealType}
       dishIdeas={dishIdeas}
+      ingredientCatalog={ingredientCatalog}
       onClose={() => setAddingDish(false)}
-      onConfirm={(name, _category, persist, dishData) => {
+      onConfirm={(name, _category, persist, dishData, ingredients) => {
         // Same commit as picking from the list: one write, whether or not the
         // dish is also saved to the catalogue.
         commitPick(name)
-        if (persist && dishData) onAddNewDish(dishData)
+        if (persist && dishData) onAddNewDish(dishData, ingredients ?? [])
         setAddingDish(false)
       }}
     />

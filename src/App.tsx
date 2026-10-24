@@ -687,19 +687,6 @@ function App({ household }: { household: Household }) {
     setHighlightDays([])
   }, [displayedWeekKey, view])
 
-  const handleAddNewDish = useCallback(async (dishData: NewDishIdea) => {
-    try {
-      const { error } = await supabase
-        .from('dish_ideas')
-        .insert({ ...dishData, household_id: householdId })
-      if (error) throw error
-      trackEvent('dish_added', { category: dishData.category })
-    } catch (err) {
-      console.error('Error adding dish:', err)
-      setError(err instanceof Error ? err.message : 'No se pudo añadir el plato')
-    }
-  }, [householdId])
-
   const handleSaveDish = useCallback(async (
     dishData: NewDishIdea,
     dishId?: string,
@@ -738,6 +725,14 @@ function App({ household }: { household: Household }) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el plato')
     }
   }, [householdId, ingredientCatalog, loadDishIdeas, loadShoppingIngredients])
+
+  // A dish saved to the catalogue from the day editor goes through the same
+  // write as one created in Platos: its shopping ingredients too, and a reload
+  // so Platos shows it without waiting on realtime.
+  const handleAddNewDish = useCallback(
+    (dishData: NewDishIdea, ingredients: IngredientDraft[]) => handleSaveDish(dishData, undefined, ingredients),
+    [handleSaveDish]
+  )
 
   // A dish completed in the shopping list's guided flow (§5.3): only its
   // ingredients and recipe change. Throws, so the step can say it failed.
@@ -997,6 +992,7 @@ function App({ household }: { household: Household }) {
                 <MenuAgendaView
                   menu={displayedMenu}
                   dishIdeas={dishIdeas}
+                  ingredientCatalog={ingredientCatalog}
                   rules={rules}
                   readOnly={readOnly}
                   onReplaceCourse={handleReplaceCourse}
