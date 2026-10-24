@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from 'react'
-import { WeeklyMenu, DishIdea, NewDishIdea } from '../types'
+import { WeeklyMenu, DishIdea, NewDishIdea, ShoppingIngredient } from '../types'
+import { IngredientDraft } from '../lib/dishIngredients'
 import { formatDayName } from '../utils/menuGenerator'
 import { CourseSlot, MealType, dishesOf } from '../lib/dayFormat'
 import { HouseholdRules } from '../lib/householdRules'
@@ -11,13 +12,15 @@ import CompactMeals from './CompactMeals'
 interface MenuAgendaViewProps {
   menu: WeeklyMenu
   dishIdeas: DishIdea[]
+  /** The household's shopping ingredients, for a new dish saved from the editor. */
+  ingredientCatalog: ShoppingIngredient[]
   rules: HouseholdRules
   /** Past weeks are history: shown, never edited. */
   readOnly: boolean
   onReplaceCourse: (dayISO: string, mealType: MealType, slot: CourseSlot, dishName: string) => void
   onAddFirstCourse: (dayISO: string, mealType: MealType, dishName: string) => void
   onRemoveFirstCourse: (dayISO: string, mealType: MealType) => void
-  onAddNewDish: (dishData: NewDishIdea) => void
+  onAddNewDish: (dishData: NewDishIdea, ingredients: IngredientDraft[]) => void
   /**
    * The day being edited, or null. It lives in `App` because from 1024px up the
    * way in is the "Editar la semana" button in the header, which is rendered
@@ -158,6 +161,7 @@ const DayCard = ({
 export default function MenuAgendaView({
   menu,
   dishIdeas,
+  ingredientCatalog,
   rules,
   readOnly,
   onReplaceCourse,
@@ -415,6 +419,7 @@ export default function MenuAgendaView({
         lunch={itemsByDay[openDay]?.lunch ?? null}
         dinner={itemsByDay[openDay]?.dinner ?? null}
         dishIdeas={dishIdeas}
+        ingredientCatalog={ingredientCatalog}
         rules={rules}
         surface={surface}
         onClose={closeEditor}
