@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>¡Ñam! · vídeo lista de la compra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@600;700;800;900&family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --crema: #fff8ec; --crema2: #f6ecd8; --crema3: #eadfcd;
+    --tinta: #26211c; --tinta5: #6f675b;
+    --verde: #2e9e6b; --verde6: #258057; --verde1: #d8f0e2;
+    --amarillo: #f5b52e; --amarillo1: #fff4e0;
+    --rojo: #e2432c; --rojo1: #ffdcd5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--crema); }
+  body { font-family: 'Baloo 2', system-ui, sans-serif; color: var(--tinta); }
+  #stage { position: absolute; inset: 0; overflow: hidden; background: var(--crema); }
+  .layer { position: absolute; will-change: transform, opacity; }
+
+  /* Decorative dots in the background */
+  .blob { position: absolute; border-radius: 50%; }
+
+  /* Captions */
+  #captions { left: 60px; right: 60px; top: 150px; height: 340px; }
+  .cap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; }
+  .cap h2 { font-size: 78px; line-height: 1.02; font-weight: 800; letter-spacing: -0.5px; }
+  .cap p { margin-top: 14px; font-family: 'Nunito Sans', sans-serif; font-weight: 800; font-size: 38px; color: var(--tinta5); }
+  .cap .hl { color: var(--rojo); }
+  .cap .step { display: inline-flex; align-items: center; justify-content: center; width: 78px; height: 78px; border-radius: 50%; background: var(--verde); color: #fff; font-size: 50px; margin-right: 18px; vertical-align: middle; transform: translateY(-6px); }
+
+  /* Phone */
+  .phone { position: absolute; border-radius: 74px; background: var(--tinta); padding: 16px; box-shadow: 18px 22px 0 var(--crema3), 0 40px 80px rgba(38,33,28,.18); }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 58px; overflow: hidden; background: var(--crema); }
+  .screen .cam { position: absolute; left: 0; top: 0; width: 390px; height: 844px; transform-origin: 0 0; }
+  .screen img.clip { position: absolute; left: 0; top: 0; width: 390px; height: 844px; }
+  .pill { display: none; position: absolute; top: 12px; left: 50%; width: 110px; height: 30px; margin-left: -55px; border-radius: 20px; background: var(--tinta); z-index: 5; }
+  .finger { position: absolute; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(38,33,28,.28); border: 4px solid rgba(255,255,255,.95); box-shadow: 0 4px 14px rgba(38,33,28,.35); opacity: 0; z-index: 4; }
+  .who { position: absolute; top: -78px; left: 0; right: 0; text-align: center; font-size: 40px; font-weight: 800; }
+  .who span { display: inline-block; padding: 2px 26px; border-radius: 40px; background: var(--tinta); color: var(--crema); }
+
+  /* Opening notes */
+  .note { position: absolute; width: 420px; padding: 34px 34px 40px; background: #fff3b8; box-shadow: 10px 12px 0 rgba(38,33,28,.10); font-size: 50px; font-weight: 700; line-height: 1.05; opacity: 0; }
+  .note::after { content: ''; position: absolute; left: 24px; right: 24px; top: 50%; height: 9px; border-radius: 6px; background: var(--rojo); transform-origin: left center; transform: scaleX(var(--strike, 0)); }
+  .note.pink { background: #ffd9cf; } .note.green { background: #d8f0e2; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 6px 30px 2px; border-radius: 40px; background: var(--amarillo); color: var(--tinta); font-size: 44px; font-weight: 800; box-shadow: 0 6px 0 rgba(38,33,28,.15); transform: rotate(-3deg); }
+  .wordmark { font-weight: 800; color: var(--rojo); display: inline-block; transform: rotate(-3deg); }
+
+  /* Chat mock shown after "Compartir" (inside the phone, 390×844 units) */
+  #chat { position: absolute; left: 0; top: 0; width: 390px; height: 844px; background: #efe7da; font-family: 'Nunito Sans', sans-serif; transform: translateX(100%); }
+  #chat header { height: 96px; padding: 46px 16px 0; display: flex; align-items: center; gap: 10px; background: #fff; border-bottom: 1px solid var(--crema3); }
+  #chat .ava { width: 36px; height: 36px; border-radius: 50%; background: var(--verde); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 17px; }
+  #chat .name { font-weight: 900; font-size: 17px; } #chat .sub { font-weight: 700; font-size: 12px; color: var(--tinta5); }
+  #chat .msgs { padding: 18px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .bubble { max-width: 290px; padding: 10px 13px 8px; border-radius: 16px; font-size: 14px; font-weight: 700; line-height: 1.32; box-shadow: 0 1px 1px rgba(0,0,0,.08); white-space: pre-line; }
+  .bubble.out { align-self: flex-end; background: #dcf3d0; border-bottom-right-radius: 4px; }
+  .bubble.in { align-self: flex-start; background: #fff; border-bottom-left-radius: 4px; }
+  .bubble .meta { display: block; text-align: right; font-size: 11px; color: var(--tinta5); margin-top: 2px; }
+  .bubble b { font-weight: 900; }
+
+  /* End card */
+  #end { inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; }
+  #end .wordmark { font-size: 230px; line-height: 1; }
+  #end h2 { margin-top: 40px; font-size: 92px; line-height: 1; font-weight: 800; }
+  #end p { margin-top: 26px; font-family: 'Nunito Sans', sans-serif; font-size: 44px; font-weight: 800; color: var(--tinta5); }
+  #end .cta { margin-top: 56px; display: inline-flex; align-items: center; gap: 18px; padding: 22px 46px 18px; border-radius: 60px; background: var(--verde); color: #fff; font-size: 52px; font-weight: 800; box-shadow: 0 8px 0 var(--verde6); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="blob layer" style="width:520px;height:520px;left:-200px;top:1180px;background:var(--crema2)"></div>
+  <div class="blob layer" style="width:380px;height:380px;right:-150px;top:260px;background:var(--amarillo1)"></div>
+
+  <!-- Opening -->
+  <div id="notes" class="layer" style="inset:0">
+    <div class="note" id="n1" style="left:80px;top:760px">¿Queda tomate?</div>
+    <div class="note pink" id="n2" style="left:560px;top:960px">¡Se me olvidó el pollo!</div>
+    <div class="note green" id="n3" style="left:150px;top:1220px">¿Quién va al súper?</div>
+  </div>
+
+  <div id="captions" class="layer">
+    <div class="cap" data-in="0.25" data-out="2.7"><h2>Ya sabes qué vais<br>a comer esta semana…</h2></div>
+    <div class="cap" data-in="2.75" data-out="5.4"><h2>…y ahora, <span class="hl">qué hay<br>que comprar.</span></h2></div>
+    <div class="cap" data-in="5.5" data-out="8.5"><span class="badge">NUEVO EN ¡ÑAM!</span><h2 style="margin-top:26px">Lista de la compra</h2></div>
+    <div class="cap" data-in="8.6" data-out="10.9"><h2><span class="step">1</span>Elige los días</h2><p>Toca Lista en tu semana</p></div>
+    <div class="cap" data-in="10.9" data-out="12.1"><h2><span class="step">2</span>Genera la lista</h2></div>
+    <div class="cap" data-in="12.1" data-out="16"><h2>Ordenada por<br><span class="hl">pasillos del súper</span></h2><p>y con el plato del que sale cada cosa</p></div>
+    <div class="cap" data-in="16" data-out="19.3"><h2>Los platos de ¡Ñam!<br>ya traen sus ingredientes</h2></div>
+    <div class="cap" data-in="19.3" data-out="23"><h2>Los tuyos, <span class="hl">los<br>apuntas una sola vez</span></h2></div>
+    <div class="cap" data-in="23" data-out="26"><h2>Lo básico de casa<br><span class="hl">no se apunta</span></h2><p>y la receta, a un toque</p></div>
+    <div class="cap" data-in="26" data-out="28.6"><h2>Toda la familia ve<br>la misma lista</h2></div>
+    <div class="cap" data-in="28.6" data-out="31"><h2>Lo que uno compra<br><span class="hl">se tacha para todos</span></h2></div>
+    <div class="cap" data-in="31" data-out="34.5"><h2>¿Va otra persona?</h2><p>Mándasela por WhatsApp o donde quieras</p></div>
+    <div class="cap" data-in="34.5" data-out="36.6"><h2>Añade lo que<br><span class="hl">no sale del menú</span></h2></div>
+    <div class="cap" data-in="36.6" data-out="38.5"><h2>¿Siempre lo tienes en casa?</h2><p>Díselo y no volverá a salir</p></div>
+    <div class="cap" data-in="38.5" data-out="41.2"><h2>Y a disfrutar 🎉</h2></div>
+  </div>
+
+  <!-- Main phone -->
+  <div id="main" class="phone layer">
+    <div class="screen">
+      <div class="pill"></div>
+      <div class="cam"><img class="clip" alt="" /><div class="finger"></div></div>
+      <div id="chat">
+        <header><div class="ava">F</div><div><div class="name">Familia 🏡</div><div class="sub">Ana, Pablo, Lucía</div></div></header>
+        <div class="msgs">
+          <div class="bubble out" id="shared"></div>
+          <div class="bubble in" id="reply"><b style="color:#c2371f">Pablo</b><br>¡Voy yo al salir del curro! 🙌<span class="meta">10:03</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two phones of the household -->
+  <div id="duo" class="layer" style="inset:0">
+    <div id="ana" class="phone"><div class="who"><span>Ana</span></div><div class="screen"><div class="pill"></div><div class="cam"><img class="clip" alt="" /><div class="finger"></div></div></div></div>
+    <div id="pablo" class="phone"><div class="who"><span>Pablo</span></div><div class="screen"><div class="pill"></div><div class="cam"><img class="clip" alt="" /><div class="finger"></div></div></div></div>
+  </div>
+
+  <div id="end" class="layer">
+    <span class="wordmark">¡Ñam!</span>
+    <h2>Lista de la compra</h2>
+    <p>Ya disponible</p>
+    <span class="cta">Abre Semana y toca <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2.6l2.4 11.2h11l2-7.7H6.2"/></svg> Lista</span>
+  </div>
+</div>
+
+<script type="module">
+const FPS = 30
+const DURATION = 45
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v))
+const ease = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2 }
+const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+const back = (x) => { x = clamp(x); const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2) }
+const lerp = (a, b, x) => a + (b - a) * x
+const span = (t, a, b) => clamp((t - a) / (b - a))
+
+/** Piecewise-linear map from video time to clip time; holds before and after. */
+const mapper = (points) => (t) => {
+  if (t <= points[0][0]) return points[0][1]
+  for (let i = 1; i < points.length; i++) {
+    const [t0, c0] = points[i - 1], [t1, c1] = points[i]
+    if (t <= t1) return lerp(c0, c1, (t - t0) / (t1 - t0))
+  }
+  return points[points.length - 1][1]
+}
+const invert = (points, c) => {
+  for (let i = 1; i < points.length; i++) {
+    const [t0, c0] = points[i - 1], [t1, c1] = points[i]
+    if (c1 > c0 && c >= c0 && c <= c1) return lerp(t0, t1, (c - c0) / (c1 - c0))
+  }
+  return null
+}
+
+// Which clip each phone shows, when, and at what pace: [video time, clip time].
+const SHOTS = {
+  main: [
+    { from: 0, to: 16, clip: 'crear', points: [[5.5, 0], [6.6, 0], [11.2, 4.6], [12.6, 6.0], [16, 11.6]] },
+    { from: 16, to: 23, clip: 'guia', points: [[16, 0.3], [18.3, 2.6], [19.4, 3.9], [21.9, 9.9], [23, 11.75]] },
+    { from: 23, to: 26, clip: 'ficha', points: [[23, 0.35], [24.6, 1.9], [26, 4.4]] },
+    { from: 31, to: 34.5, clip: 'compartir', points: [[31, 0.2], [32.5, 1.7]] },
+    { from: 34.5, to: 45, clip: 'extras', points: [[34.5, 0.45], [36.5, 2.95], [38.4, 5.9], [41, 10.3]] },
+  ],
+  ana: [{ from: 25.5, to: 31.5, clip: 'sync-0', taps: 'sync', points: [[26, 0.4], [31, 6.2]] }],
+  pablo: [{ from: 25.5, to: 31.5, clip: 'sync-1', taps: null, points: [[26, 0.4], [31, 6.2]] }],
+}
+
+// Zooms inside the main phone: [start, end, scale, focus x, focus y] in app pixels.
+const ZOOMS = [
+  [6.9, 8.25, 1.75, 300, 40],
+  [19.5, 22.2, 1.2, 195, 330],
+  [34.6, 36.4, 1.35, 195, 290],
+]
+
+const meta = {}
+const frameCount = {}
+for (const name of ['crear', 'guia', 'ficha', 'sync', 'compartir', 'extras']) {
+  meta[name] = await (await fetch(`/out/clips/${name}.json`)).json()
+}
+for (const name of ['crear', 'guia', 'ficha', 'sync-0', 'sync-1', 'compartir', 'extras']) {
+  const base = name.startsWith('sync') ? 'sync' : name
+  frameCount[name] = Math.round(meta[base].duration * FPS)
+}
+
+const shared = meta.compartir.shared.split('\n')
+document.getElementById('shared').innerHTML =
+  `<b>${shared[0]}</b>\n\n` + shared.slice(2, 13).join('\n') + '\n…<span class="meta">10:02 ✓✓</span>'
+
+const $ = (sel, root = document) => root.querySelector(sel)
+
+/** Shows the right clip frame and finger in one phone; returns once the image is decoded. */
+async function paintPhone(el, shots, t, zoom) {
+  const shot = shots.find((s) => t >= s.from && t < s.to) ?? null
+  const img = $('img.clip', el)
+  const finger = $('.finger', el)
+  if (!shot) return
+  const c = mapper(shot.points)(t)
+  const frames = frameCount[shot.clip] ?? 1
+  const index = clamp(Math.round(c * FPS) + 1, 1, frames)
+  const src = `/out/frames/${shot.clip}/${String(index).padStart(5, '0')}.jpg`
+  if (img.getAttribute('src') !== src) {
+    img.setAttribute('src', src)
+    await img.decode().catch(() => {})
+  }
+  // Finger: shows up when the recording put it there, presses ~0.35 s later.
+  finger.style.opacity = 0
+  const taps = shot.taps === null ? [] : meta[shot.taps ?? shot.clip]?.taps ?? []
+  for (const tap of taps) {
+    const appear = invert(shot.points, tap.t)
+    const press = invert(shot.points, Math.min(tap.t + 0.36, meta[shot.taps ?? shot.clip].duration))
+    if (appear === null || press === null) continue
+    const start = appear - 0.12, end = press + 0.32
+    if (t < start || t > end) continue
+    const fadeIn = span(t, start, appear + 0.05)
+    const fadeOut = 1 - span(t, press + 0.12, end)
+    const pressed = t >= press - 0.06 && t <= press + 0.14
+    finger.style.left = `${tap.x}px`
+    finger.style.top = `${tap.y}px`
+    finger.style.opacity = Math.min(fadeIn, fadeOut)
+    finger.style.transform = `scale(${pressed ? 0.78 : lerp(1.25, 1, fadeIn)})`
+    finger.style.background = pressed ? 'rgba(46,158,107,.45)' : 'rgba(38,33,28,.28)'
+  }
+  const cam = $('.cam', el)
+  if (zoom) {
+    const [s, fx, fy] = zoom
+    const tx = clamp(390 / 2 - fx * s, 390 - 390 * s, 0)
+    const ty = clamp(844 * 0.42 - fy * s, 844 - 844 * s, 0)
+    cam.dataset.zoom = `translate(${tx}px, ${ty}px) scale(${s})`
+  } else cam.dataset.zoom = ''
+}
+
+function zoomAt(t) {
+  for (const [a, b, s, x, y] of ZOOMS) {
+    if (t < a - 0.6 || t > b + 0.6) continue
+    const k = t < a ? 0 : t > b ? 1 - ease(span(t, b, b + 0.6)) : ease(span(t, a, a + 0.6))
+    return [lerp(1, s, k), x, y]
+  }
+  return null
+}
+
+function placePhone(el, x, y, screenWidth) {
+  el.style.width = `${screenWidth + 32}px`
+  el.style.height = `${(844 * screenWidth) / 390 + 32}px`
+  el.style.left = `${x}px`
+  el.style.top = `${y}px`
+}
+
+const main = document.getElementById('main')
+const ana = document.getElementById('ana')
+const pablo = document.getElementById('pablo')
+const MAIN_W = 600
+placePhone(main, (1080 - MAIN_W - 32) / 2, 520, MAIN_W)
+placePhone(ana, 46, 650, 470)
+placePhone(pablo, 1080 - 46 - 470 - 32, 650, 470)
+
+/** The camera transform above composes with the phone's own scale. */
+function applyScreenScale(el) {
+  const s = (el === main ? MAIN_W : 470) / 390
+  const cam = $('.screen > .cam', el)
+  cam.style.transform = `scale(${s}) ${cam.dataset.zoom || ''}`
+  const chat = $('#chat', el)
+  if (chat) chat.style.transform = `scale(${s}) translateX(${chat.dataset.x ?? 100}%)`
+  if (chat) chat.style.transformOrigin = '0 0'
+}
+
+window.renderAt = async (t) => {
+  // Captions
+  for (const cap of document.querySelectorAll('.cap')) {
+    const a = +cap.dataset.in, b = +cap.dataset.out
+    const k = Math.min(easeOut(span(t, a, a + 0.35)), 1 - span(t, b - 0.22, b))
+    cap.style.opacity = t < a || t > b ? 0 : k
+    cap.style.transform = `translateY(${lerp(40, 0, easeOut(span(t, a, a + 0.4)))}px) scale(${lerp(0.96, 1, back(span(t, a, a + 0.45)))})`
+  }
+  $('#captions').style.opacity = t > 41.2 ? 0 : 1
+
+  // Opening notes: pop in, get crossed out, then fall away as the phone rises.
+  const notes = [['#n1', 0.5, -5], ['#n2', 1.0, 4], ['#n3', 1.5, -2]]
+  notes.forEach(([sel, at, rot], i) => {
+    const n = $(sel)
+    const pop = back(span(t, at, at + 0.45))
+    const fall = ease(span(t, 4.3 + i * 0.12, 5.4 + i * 0.12))
+    n.style.opacity = t < at ? 0 : 1 - fall
+    n.style.transform = `translateY(${fall * 900}px) rotate(${rot + fall * 25}deg) scale(${lerp(0.6, 1, pop)})`
+    n.style.setProperty('--strike', ease(span(t, 2.8 + i * 0.25, 3.25 + i * 0.25)))
+  })
+  $('#notes').style.display = t > 6 ? 'none' : ''
+
+  // Main phone: rises at 4.6 s, makes way for the two phones, leaves for the end card.
+  const rise = ease(span(t, 4.4, 5.6))
+  const duoIn = ease(span(t, 25.4, 26.1)), duoOut = ease(span(t, 30.7, 31.3))
+  const away = duoIn * (1 - duoOut)
+  const exit = ease(span(t, 41, 41.8))
+  main.style.opacity = t < 4.4 ? 0 : 1
+  main.style.transform = `translateY(${(1 - rise) * 1500 + away * 1700 + exit * 1700}px) rotate(${(1 - rise) * 8}deg)`
+  const duoShown = t > 25.3 && t < 31.4
+  $('#duo').style.display = duoShown ? '' : 'none'
+  ana.style.transform = `translateX(${(1 - duoIn) * -700 + duoOut * -700}px) rotate(-2deg)`
+  pablo.style.transform = `translateX(${(1 - duoIn) * 700 + duoOut * 700}px) rotate(2deg)`
+
+  // Chat after "Compartir"
+  const chat = $('#chat')
+  const slide = ease(span(t, 32.3, 32.8)) * (1 - span(t, 34.4, 34.5))
+  chat.dataset.x = (1 - slide) * 100
+  chat.style.display = t > 32 && t < 34.5 ? '' : 'none'
+  $('#reply').style.opacity = easeOut(span(t, 33.5, 33.8))
+  $('#reply').style.transform = `translateY(${(1 - easeOut(span(t, 33.5, 33.8))) * 20}px)`
+
+  // End card
+  const end = $('#end')
+  const endIn = span(t, 41.5, 42.1)
+  end.style.opacity = easeOut(endIn)
+  end.style.transform = `scale(${lerp(0.9, 1, back(endIn))})`
+  $('.cta', end).style.transform = `scale(${1 + 0.03 * Math.sin(Math.max(0, t - 42.6) * 5) * span(t, 42.6, 43)})`
+
+  const work = [paintPhone(main, SHOTS.main, Math.max(t, 5.5), zoomAt(t))]
+  if (duoShown) work.push(paintPhone(ana, SHOTS.ana, t, null), paintPhone(pablo, SHOTS.pablo, t, null))
+  await Promise.all(work)
+  applyScreenScale(main)
+  if (duoShown) { applyScreenScale(ana); applyScreenScale(pablo) }
+  await new Promise((resolve) => requestAnimationFrame(() => resolve()))
+}
+
+await document.fonts.ready
+await window.renderAt(0)
+window.composerReady = true
+// Live preview: ?play runs the timeline in real time; ?t=12 freezes a moment.
+const params = new URLSearchParams(location.search)
+if (params.has('t')) window.renderAt(+params.get('t'))
+if (params.has('play')) {
+  const start = performance.now()
+  const loop = async () => { const t = (performance.now() - start) / 1000 % DURATION; await window.renderAt(t); requestAnimationFrame(loop) }
+  loop()
+}
+</script>
+</body>
+</html>
