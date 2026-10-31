@@ -27,4 +27,5 @@ ffmpeg -y -i promo/out/video-sin-musica.mp4 -i promo/out/musica.wav -map 0:v -ma
   -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart promo/out/nam-lista-de-la-compra.mp4
 ```
 
-`out/` is not committed.
+`out/` is not committed. The final video is kept at
+`docs/promo/nam-lista-de-la-compra.mp4`: copy the new render there when it changes.
