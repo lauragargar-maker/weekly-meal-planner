@@ -24,8 +24,8 @@ import { RuleCard, RuleChips, RuleChoice, RuleStepper, RuleSwitch } from './Rule
  * is nothing for them to configure.
  *
  * The household is not created until the last step. The alternative — creating
- * it on the "crear un hogar" screen, where the invite code is checked — would
- * leave anybody who abandons at step 2 with a household that has no rules and no
+ * it on the "crear un hogar" screen, where its name is typed — would leave
+ * anybody who abandons at step 2 with a household that has no rules and no
  * dishes, and AuthGate would never route them back here to finish.
  */
 
@@ -39,9 +39,6 @@ export default function OnboardingScreen() {
 
   const [view, setView] = useState<View>('branch')
   const [householdName, setHouseholdName] = useState('')
-  const [inviteCode, setInviteCode] = useState('')
-  const [inviteError, setInviteError] = useState<string | null>(null)
-  const [checkingCode, setCheckingCode] = useState(false)
 
   const [rules, setRules] = useState<HouseholdRules>(DEFAULT_RULES)
   const [discarded, setDiscarded] = useState<Set<string>>(new Set())
@@ -85,44 +82,14 @@ export default function OnboardingScreen() {
         : [...current.dinnerExclusions, ingredient],
     }))
 
-  /**
-   * Checked here, before three steps of work, and NOT redeemed: redemption
-   * happens at the end. A code exhausted in between still fails there, which is
-   * why the final step reports that error rather than trusting this check.
-   */
-  const checkInviteCode = async () => {
-    if (checkingCode) return
-    setCheckingCode(true)
-    setInviteError(null)
-    try {
-      const { data, error: rpcError } = await supabase.rpc('validate_invite_code', {
-        invite_code: inviteCode.trim(),
-      })
-      if (rpcError) throw rpcError
-      if (data === true) {
-        go('step1')
-        return
-      }
-      setInviteError(
-        'Este código no nos suena. Revísalo o ponte en contacto con nosotros.'
-      )
-    } catch (err) {
-      console.error('Error validating invite code:', err)
-      setInviteError(translateError(getErrorMessage(err), 'No se pudo comprobar el código'))
-    } finally {
-      setCheckingCode(false)
-    }
-  }
-
   const createHousehold = async () => {
     if (submitting) return
     setSubmitting(true)
     setError(null)
     try {
-      const { data: householdId, error: rpcError } = await supabase.rpc(
-        'redeem_invite_and_create_household',
-        { invite_code: inviteCode.trim(), household_name: householdName.trim() }
-      )
+      const { data: householdId, error: rpcError } = await supabase.rpc('create_household', {
+        household_name: householdName.trim(),
+      })
       if (rpcError) throw rpcError
 
       // Rules and dishes are written after the household exists rather than
@@ -193,7 +160,7 @@ export default function OnboardingScreen() {
   }
 
   const houseLabel = householdName.trim().toUpperCase() || 'TU CASA'
-  const canCreate = householdName.trim() !== '' && inviteCode.trim() !== ''
+  const canCreate = householdName.trim() !== ''
 
   return (
     <div className="min-h-screen bg-crema-100">
@@ -226,40 +193,13 @@ export default function OnboardingScreen() {
               placeholder="p. ej. Casa García"
             />
 
-            <label className="label-nam mt-6" htmlFor="invite-code">
-              Código de la beta
-            </label>
-            <input
-              id="invite-code"
-              type="text"
-              value={inviteCode}
-              onChange={(event) => {
-                setInviteCode(event.target.value.toUpperCase())
-                setInviteError(null)
-              }}
-              className={`input-hero tracking-[0.18em] ${
-                inviteError ? '!border-2 !border-rojo-500 !shadow-none' : ''
-              }`}
-              aria-invalid={Boolean(inviteError)}
-            />
-            {inviteError && (
-              <p className="error-nam" role="alert">
-                {inviteError}
-              </p>
-            )}
-            <p className="help-nam">
-              Por ahora esta app está disponible sólo por invitación. Si no lo tienes, pide el
-              código de la beta al equipo de ¡Ñam!
-            </p>
-
             <button
               type="button"
-              onClick={checkInviteCode}
-              disabled={!canCreate || checkingCode}
+              onClick={() => go('step1')}
+              disabled={!canCreate}
               className="btn-primary mt-8 w-full disabled:cursor-not-allowed disabled:bg-crema-400 disabled:text-crema-100"
             >
-              {checkingCode && <Spinner />}
-              {checkingCode ? 'Comprobando…' : 'Seguir'}
+              Seguir
             </button>
           </>
         )}

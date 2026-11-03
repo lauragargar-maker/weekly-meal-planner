@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { useAuth } from '../lib/auth-context'
 import { translateError } from '../lib/errorMessages'
 import { trackEvent } from '../lib/analytics'
@@ -12,6 +13,15 @@ export default function LoginScreen() {
   const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Cloudflare Turnstile, against bots requesting codes now that signup is open.
+  // Unset in local dev, where neither the widget nor Supabase's check is on.
+  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY
+  const turnstileRef = useRef<TurnstileInstance>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  // Hidden it takes no room, so the spacing above it only applies while shown.
+  const [captchaShown, setCaptchaShown] = useState(false)
+  const awaitingCaptcha = Boolean(siteKey) && !captchaToken
+
   const requestCode = async (): Promise<boolean> => {
     // Fired on submit attempt (before the request resolves) so the login
     // funnel can measure drop-off between requesting a code and signing in,
@@ -23,7 +33,7 @@ export default function LoginScreen() {
     setSending(true)
     setError(null)
     try {
-      await signInWithEmail(email.trim())
+      await signInWithEmail(email.trim(), captchaToken ?? undefined)
       return true
     } catch (err) {
       console.error('Error sending sign-in code:', err)
@@ -35,13 +45,17 @@ export default function LoginScreen() {
       )
       return false
     } finally {
+      // A token is good for one request, sent or not, so "Enviarme otro
+      // código" needs the widget to produce a new one.
+      turnstileRef.current?.reset()
+      setCaptchaToken(null)
       setSending(false)
     }
   }
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim() || sending) return
+    if (!email.trim() || sending || awaitingCaptcha) return
     if (await requestCode()) {
       setCode('')
       setStep('code')
@@ -49,7 +63,7 @@ export default function LoginScreen() {
   }
 
   const handleResend = async () => {
-    if (sending) return
+    if (sending || awaitingCaptcha) return
     setCode('')
     await requestCode()
   }
@@ -73,6 +87,27 @@ export default function LoginScreen() {
       setVerifying(false)
     }
   }
+
+  // Rendered on both steps, because resending a code needs a fresh token too.
+  // `interaction-only` keeps it out of sight unless Cloudflare wants a click.
+  const captcha = siteKey ? (
+    <div className={`flex justify-center ${captchaShown ? 'mt-4' : ''}`}>
+      <Turnstile
+        ref={turnstileRef}
+        siteKey={siteKey}
+        options={{ language: 'es', theme: 'light', size: 'flexible', appearance: 'interaction-only' }}
+        onSuccess={(token) => setCaptchaToken(token)}
+        onExpire={() => setCaptchaToken(null)}
+        onBeforeInteractive={() => setCaptchaShown(true)}
+        onAfterInteractive={() => setCaptchaShown(false)}
+        onError={() => {
+          setCaptchaToken(null)
+          setCaptchaShown(true)
+          setError('No hemos podido comprobar que eres una persona. Recarga la página e inténtalo de nuevo')
+        }}
+      />
+    </div>
+  ) : null
 
   return (
     <div className="min-h-screen bg-verde-500 px-7 pt-14 pb-10 md:flex md:items-center md:justify-center md:py-10">
@@ -132,10 +167,12 @@ export default function LoginScreen() {
               </button>
             </form>
 
+            {captcha}
+
             <div className="mt-6 flex flex-col items-center gap-3">
               <button
                 onClick={handleResend}
-                disabled={sending}
+                disabled={sending || awaitingCaptcha}
                 className="text-[15px] font-extrabold text-white underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-verde-500 disabled:opacity-70"
               >
                 {sending ? 'Enviando…' : 'Enviarme otro código'}
@@ -170,6 +207,7 @@ export default function LoginScreen() {
                 className="mt-2 w-full rounded-full bg-white px-5 py-[15px] md:px-[22px] md:py-4 text-base md:text-[17px] font-bold font-sans text-tinta-900 placeholder:text-tinta-300 focus:outline-none focus:ring-2 focus:ring-tinta-900"
                 placeholder="tu@email.com"
               />
+              {captcha}
               {error && (
                 <p className="mt-2 text-sm font-extrabold text-amarillo-500" role="alert">
                   {error}
@@ -177,7 +215,7 @@ export default function LoginScreen() {
               )}
               <button
                 type="submit"
-                disabled={sending || !email.trim()}
+                disabled={sending || !email.trim() || awaitingCaptcha}
                 className="btn-dark mt-3 w-full text-[17px] md:text-[18px] focus:ring-white focus:ring-offset-verde-500 disabled:opacity-70"
               >
                 {sending && (

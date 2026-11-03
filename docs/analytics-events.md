@@ -34,7 +34,7 @@ thin wrapper over `@amplitude/unified`. Setup details that change how the number
 | Event | Properties | Where |
 |---|---|---|
 | `login_otp_requested` | — | `LoginScreen.tsx:21` |
-| `login_otp_request_failed` | `reason` (error message, or `unknown`) | `LoginScreen.tsx:30` |
+| `login_otp_request_failed` | `reason` (error message, or `unknown`; Turnstile rejections contain `captcha`) | `LoginScreen.tsx` |
 | `session_signed_in` | — | `AuthProvider.tsx:23` |
 | `session_signed_out` | — | `AuthProvider.tsx:25` |
 

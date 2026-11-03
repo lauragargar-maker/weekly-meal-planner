@@ -82,8 +82,11 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   // following a link. On iOS the app is usually a home-screen shortcut, and a
   // link opens in Safari, landing the session in Safari's storage — so the
   // shortcut could never sign in. A code never leaves the app.
-  const signInWithEmail = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({ email })
+  const signInWithEmail = useCallback(async (email: string, captchaToken?: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: captchaToken ? { captchaToken } : undefined,
+    })
     if (error) throw error
   }, [])
 

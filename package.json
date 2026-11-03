@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@amplitude/unified": "^1.1.25",
+    "@marsidev/react-turnstile": "1.6.2",
     "@supabase/supabase-js": "^2.39.0",
     "date-fns": "^3.0.0",
     "react": "^18.2.0",

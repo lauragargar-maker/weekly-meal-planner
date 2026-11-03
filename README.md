@@ -4,7 +4,7 @@ A modern web application for generating and managing weekly meal plans with Supa
 
 ## Features
 
-- 🔐 **Households**: Passwordless (magic link) sign-in; each household has its own private dish catalog and menus, with invite-code signup
+- 🔐 **Households**: Passwordless sign-in with a 6-digit email code, behind a Cloudflare Turnstile check; each household has its own private dish catalog and menus
 - 📅 **Weekly Menu Generation**: Automatically generates weekly menus with starter + main or single-course lunches, and main-course dinners
 - 📱 **Visual Agenda View**: Beautiful, responsive calendar-style view of the weekly menu
 - 🔔 **WhatsApp Notifications**: Automatically send weekly menus to designated contacts every Friday
@@ -211,10 +211,12 @@ The app supports WhatsApp notifications through various providers:
 
 ## Accounts and Households
 
-Users sign in with a magic link (passwordless email). A new user redeems an **invite code**
-to create their household — the private space that owns their dish catalog and weekly menus.
+Users sign in with a 6-digit code sent by email (no passwords). Signup is open: any
+signed-in user can create their household — the private space that owns their dish catalog
+and weekly menus — or join an existing one with its family code. Requesting a code goes
+through Cloudflare Turnstile so bots can't mass-create accounts.
 Row Level Security restricts every read and write to the member's own household.
-See `SETUP.md` for creating invite codes and migrating a single-user install.
+See `SETUP.md` for configuring Turnstile and migrating a single-user install.
 
 ## Building for Production
 

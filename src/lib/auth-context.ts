@@ -10,8 +10,11 @@ export interface AuthContextValue {
   household: Household | null
   /** Set when the household lookup itself failed (as opposed to the user having none). */
   householdError: string | null
-  /** Email the user a one-time sign-in code. */
-  signInWithEmail: (email: string) => Promise<void>
+  /**
+   * Email the user a one-time sign-in code. `captchaToken` is the Turnstile
+   * token, required once captcha protection is on in Supabase Auth.
+   */
+  signInWithEmail: (email: string, captchaToken?: string) => Promise<void>
   /** Exchange the emailed code for a session. */
   verifyCode: (email: string, code: string) => Promise<void>
   signOut: () => Promise<void>
