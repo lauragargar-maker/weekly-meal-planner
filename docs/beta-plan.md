@@ -29,6 +29,15 @@ sin salida.
 | M6 — navegación de tres destinos | **En producción** (PR #16, ago 2026) |
 | M6 — editar tocando el día | **Listo para mergear** (PR #18, ago 2026), con el override manual de M2b |
 
+> **Registro abierto (nov 2026).** Desde la migración `20261102000000_open_signup.sql`
+> crear un hogar ya no pide el código de la beta: lo hace `create_household`, y la
+> pantalla «Crear un hogar» solo pide el nombre. A cambio, pedir el código de acceso pasa
+> por Cloudflare Turnstile (captcha de Supabase Auth), para que los bots no creen
+> cuentas ni gasten el cupo de correos. `invite_codes` y
+> `redeem_invite_and_create_household` siguen en la base de datos para no romper a quien
+> tenga la versión anterior en caché; se pueden borrar en una limpieza posterior.
+> Configuración y orden de despliegue en `SETUP.md` §2b.
+
 **Los diez must-have están hechos.** Con M6 completo se cierra también el punto 3 de
 M2b, el override manual "hoy quiero dos platos", que se había aplazado justo hasta
 aquí. No queda nada del plan de beta por construir.

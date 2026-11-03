@@ -1,7 +1,6 @@
 // Backend errors arrive in English (RPC exceptions, Supabase Auth);
 // map the known ones to Spanish before showing them to the user.
 const KNOWN_ERRORS: Array<[string, string]> = [
-  ['Invalid or expired invite code', 'Código de invitación no válido o caducado'],
   ['You already belong to a household', 'Ya perteneces a un hogar'],
   ['Invalid family code', 'Código familiar no válido'],
   ['Household name is required', 'El nombre del hogar es obligatorio'],
@@ -11,6 +10,8 @@ const KNOWN_ERRORS: Array<[string, string]> = [
   ['Error sending confirmation email', 'No se pudo enviar el email. Inténtalo de nuevo en unos minutos'],
   ['Error sending magic link email', 'No se pudo enviar el email. Inténtalo de nuevo en unos minutos'],
   ['Token has expired or is invalid', 'El código no es válido o ha caducado. Pide uno nuevo'],
+  // Supabase Auth rejecting a missing, expired or reused Turnstile token.
+  ['captcha', 'No hemos podido comprobar que eres una persona. Inténtalo de nuevo'],
   ['Invalid token', 'El código no es válido. Revísalo e inténtalo de nuevo'],
   ['Email link is invalid or has expired', 'El código ha caducado. Pide uno nuevo'],
 ]

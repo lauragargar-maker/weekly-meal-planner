@@ -305,5 +305,6 @@ ellas, en el colegio o en el grupo de padres.
 - Hogares captados directamente por el equipo: entrevistas, contactos personales,
   publicaciones propias. **Durante la beta cerrada casi todos los hogares llegan así**,
   de modo que K saldrá cercano a cero por construcción. Hay que empezar a leerlo cuando
-  la beta se abra.
+  la beta se abra. **El registro se abrió en noviembre de 2026** (ya no hace falta el
+  código de la beta): las cohortes anteriores a esa fecha no cuentan para K.
 - Invitaciones enviadas que no acaban en alta.

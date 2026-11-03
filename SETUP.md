@@ -21,26 +21,43 @@ pnpm install
 5. Run each script in `supabase/migrations/` in filename (date) order the same way
 6. Together these create:
    - `dish_ideas` and `weekly_menus` tables (owned per household)
-   - `households`, `household_members`, and `invite_codes` tables
-   - The `redeem_invite_and_create_household` signup function
+   - `households` and `household_members` tables
+   - The `create_household` and `join_household` signup functions
+   - `invite_codes` and `redeem_invite_and_create_household`, left over from the closed
+     beta: the app no longer uses them
    - Necessary indexes, triggers, and per-household Row Level Security policies
 
-### 2b. Authentication and Invite Codes
+### 2b. Authentication
 
-The app signs users in with **magic links** (passwordless email), which Supabase Auth provides out of the box.
+The app signs users in with a **6-digit code sent by email** (passwordless), which Supabase Auth provides out of the box.
 
 1. In **Authentication > URL Configuration**, set the Site URL to where the app runs
    (`http://localhost:5173` for development, your production URL when deployed).
-2. New users must redeem an invite code to create their household. Create codes in the SQL editor:
+2. Signup is open: any signed-in user can create a household. Additional family members
+   sign in and pick **"Unirme a mi hogar"** on the onboarding screen, entering the
+   household's 6-digit **family code** (shown in the family view of anyone already in it).
 
-   ```sql
-   INSERT INTO invite_codes (code, max_uses, expires_at)
-   VALUES ('AMIGOS-2026', 20, NOW() + INTERVAL '90 days');
-   ```
+   **Bot protection (Cloudflare Turnstile):** requesting a sign-in code needs a Turnstile
+   token, so bots can't mass-create accounts or burn the email quota.
 
-   Additional family members don't need a beta invite code: they sign in and pick
-   **"Join my family"** on the onboarding screen, entering the household's **family code**
-   (shown in the app header of anyone already in the household).
+   1. In the Cloudflare dashboard, **Turnstile > Add widget**, mode *Managed*. Add the
+      production hostname and `localhost`. Use one widget per app; don't share another
+      project's.
+   2. Put the **site key** (public) in `VITE_TURNSTILE_SITE_KEY` — in `.env` locally and in
+      the Vercel project settings. Vite inlines it at build time, so redeploy after setting it.
+   3. In Supabase, **Authentication > Attack Protection > Enable Captcha protection**,
+      provider *Turnstile*, and paste the **secret key**. Do it in each Supabase project
+      (dev and production) separately.
+
+   Order matters: deploy the frontend that sends the token **before** turning captcha on in
+   Supabase. Once it is on, any request without a valid token is rejected, so an older
+   frontend would lock everyone out. With `VITE_TURNSTILE_SITE_KEY` unset the widget is not
+   shown, which only works while captcha is off in that Supabase project.
+
+   For local testing, Cloudflare publishes
+   [dummy keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/):
+   site key `1x00000000000000000000AA` always passes (`2x00000000000000000000AB` always
+   fails), with secret `1x0000000000000000000000000000000AA`.
 
    **Email rate limit:** Supabase's built-in mailer only sends a handful of auth emails per
    hour, which is too low even for one family. Configure custom SMTP (Project Settings >
