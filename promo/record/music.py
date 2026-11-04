@@ -5,18 +5,28 @@ seconds long (120 bpm) and laid out so the beat drops at 5.5 s, when "NUEVO EN
 ¡ÑAM!" appears, and the last chord lands at 41.5 s with the end card.
 
     python3 promo/record/music.py promo/out/musica.wav
+
+The ¡Ñam! promo (55 s, end card at 51.3 s) uses the same bed, longer:
+
+    python3 promo/record/music.py promo/out/nam/musica.wav --length 55 --end 51.5
 """
-import sys
+import argparse
 import wave
 
 import numpy as np
 
+parser = argparse.ArgumentParser()
+parser.add_argument("out")
+parser.add_argument("--length", type=float, default=45.0, help="seconds")
+parser.add_argument("--end", type=float, default=41.5, help="when the final chord lands")
+args = parser.parse_args()
+
 SR = 44100
-LENGTH = 45.0
+LENGTH = args.length
 BEAT = 0.5
 ORIGIN = -0.5  # bar lines at -0.5, 1.5, 3.5, 5.5 …
 DROP = 5.5
-END_CHORD = 41.5
+END_CHORD = args.end
 
 rng = np.random.default_rng(7)
 out = np.zeros((int(SR * LENGTH) + SR, 2))
@@ -135,7 +145,7 @@ while True:
                 add(clap(), t, 0.22, pan=-0.1)
                 add(bass(midi(root + 12), BEAT * 0.8), t + BEAT / 2, 0.22)
         drop_bar = round((start - DROP) / (4 * BEAT))
-        for beat, note in MELODY.get(drop_bar, []):
+        for beat, note in MELODY.get(drop_bar % 20, []):
             add(glock(midi(note)), start + beat * BEAT, 0.16, pan=0.15)
     bar += 1
 
@@ -158,16 +168,16 @@ out = out[: int(SR * LENGTH)]
 n = len(out)
 env = np.ones(n)
 env[: int(0.15 * SR)] = np.linspace(0, 1, int(0.15 * SR))
-fade_from = int(43.3 * SR)
+fade_from = int((LENGTH - 1.7) * SR)
 env[fade_from:] = np.linspace(1, 0, n - fade_from) ** 1.5
 out *= env[:, None]
 out = np.tanh(out * 1.2)
 out *= 10 ** (-1 / 20) / np.max(np.abs(out))
 
 pcm = (out * 32767).astype(np.int16)
-with wave.open(sys.argv[1], "wb") as f:
+with wave.open(args.out, "wb") as f:
     f.setnchannels(2)
     f.setsampwidth(2)
     f.setframerate(SR)
     f.writeframes(pcm.tobytes())
-print("✔", sys.argv[1])
+print("✔", args.out)

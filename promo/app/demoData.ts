@@ -61,7 +61,7 @@ export function buildDemoDatabase(): Record<string, Record<string, unknown>[]> {
       {
         id: HOUSEHOLD_ID,
         name: 'Casa García',
-        join_code: 'NAM-4821',
+        join_code: '482193',
         rules: {},
         ingredients_seeded_at: null,
         shopping_guide_seen_at: null,

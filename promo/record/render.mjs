@@ -4,6 +4,13 @@
  *   node promo/record/render.mjs                 → promo/out/video-sin-musica.mp4
  *   node promo/record/render.mjs --stills 3,9,20 → promo/out/stills/*.png
  *
+ * Another composer: COMPOSER_URL picks it and OUT_NAME names the file. The
+ * composer sets window.composerSize ({ width, height, duration }); without it
+ * the video is the shopping list one, 1080×1920 and 45 s.
+ *
+ *   COMPOSER_URL='http://localhost:5199/video/nam.html?format=h' OUT_NAME=nam/video-h-sin-musica \
+ *     node promo/record/render.mjs
+ *
  * Needs the same PW_DIR and CHROME as record.mjs, and the demo server running.
  */
 import { createRequire } from 'node:module'
@@ -19,23 +26,28 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const OUT = path.resolve(here, '../out')
 const URL = process.env.COMPOSER_URL ?? 'http://localhost:5199/video/'
 const FPS = 30
-const DURATION = 45
+const NAME = process.env.OUT_NAME ?? 'video-sin-musica'
 
-const browser = await chromium.launch({ executablePath: process.env.CHROME, headless: true })
+const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } : undefined
+const browser = await chromium.launch({ executablePath: process.env.CHROME, headless: true, proxy })
 const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 })
 page.on('pageerror', (err) => console.error('page error:', err.message))
 await page.goto(URL)
 await page.waitForFunction(() => window.composerReady === true, null, { timeout: 60000 })
+const { width, height, duration: DURATION } = await page.evaluate(() => window.composerSize ?? { width: 1080, height: 1920, duration: 45 })
+await page.setViewportSize({ width, height })
 
 const stills = process.argv.indexOf('--stills')
 if (stills > 0) {
-  fs.mkdirSync(path.join(OUT, 'stills'), { recursive: true })
+  const dir = path.join(OUT, path.dirname(NAME), 'stills')
+  fs.mkdirSync(dir, { recursive: true })
   for (const t of process.argv[stills + 1].split(',').map(Number)) {
     await page.evaluate((time) => window.renderAt(time), t)
-    await page.screenshot({ path: path.join(OUT, 'stills', `t${String(t).padStart(5, '0')}.png`) })
+    await page.screenshot({ path: path.join(dir, `${width > height ? 'h' : 'v'}-t${String(t).padStart(5, '0')}.png`) })
   }
 } else {
-  const file = path.join(OUT, 'video-sin-musica.mp4')
+  const file = path.join(OUT, `${NAME}.mp4`)
+  fs.mkdirSync(path.dirname(file), { recursive: true })
   const ffmpeg = spawn('ffmpeg', [
     '-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-i', '-',
     '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', file,
