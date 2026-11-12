@@ -39,6 +39,13 @@ Sirven para los seis KPIs, salvo que alguno diga otra cosa.
 - **"Consultar el menú de una semana"** quiere decir abrir la app y ver el plan de esa
   semana. Generarlo o editarlo también cuenta como consulta. Una consulta cuenta para la
   semana cuyo menú se mira, no para la semana en la que se hace.
+- **Consultar desde un asistente de IA también es consultar.** Un hogar que pregunta a
+  su asistente qué hay de cenar ha usado el plan igual que si hubiera abierto la app. En
+  Amplitude es el evento `mcp_tool_called` con `ok = true` y `tool` igual a `ver_menu`,
+  `cambiar_plato`, `anadir_primer_plato`, `quitar_primer_plato`, `intercambiar_dias` o
+  `generar_menu` (`docs/analytics-events.md`). La semana consultada es la de la propiedad
+  `week`.
+  Conviene poder separar las consultas por origen (app o asistente) al leer el KPI.
 
 ---
 

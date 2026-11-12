@@ -1,6 +1,8 @@
 import { useAuth } from '../lib/auth-context'
 import App from '../App'
+import { pendingAuthorizationId } from '../lib/oauthConsent'
 import LoginScreen from './LoginScreen'
+import OAuthConsentScreen from './OAuthConsentScreen'
 import OnboardingScreen from './OnboardingScreen'
 
 /** Renders the app only for a signed-in user with a household. */
@@ -54,6 +56,14 @@ export default function AuthGate() {
   }
 
   if (!household) return <OnboardingScreen />
+
+  // An assistant asking to connect (see OAuthConsentScreen). Checked last on
+  // purpose: signing in and setting up a house happen on this same address, so
+  // whoever arrives without an account ends up here once they have one.
+  const authorizationId = pendingAuthorizationId(window.location)
+  if (authorizationId) {
+    return <OAuthConsentScreen authorizationId={authorizationId} household={household} />
+  }
 
   return <App household={household} />
 }

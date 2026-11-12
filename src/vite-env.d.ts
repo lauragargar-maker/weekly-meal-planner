@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY: string
   /** Cloudflare Turnstile site key. Unset, the login screen shows no captcha. */
   readonly VITE_TURNSTILE_SITE_KEY?: string
+  /** 'true' shows "Conecta tu asistente" in Familia. Set it once the MCP function is deployed. */
+  readonly VITE_MCP_ENABLED?: string
 }
 
 interface ImportMeta {

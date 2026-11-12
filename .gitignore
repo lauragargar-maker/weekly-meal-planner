@@ -40,3 +40,6 @@ supabasecred.env
 
 
 
+
+# MCP server bundle, built at deploy time (npm run build:mcp)
+supabase/functions/mcp/bundle.js

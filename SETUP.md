@@ -120,6 +120,53 @@ INSERT INTO dish_ideas (household_id, name, category, meal_type) VALUES
 
 Find the household UUID in the `households` table.
 
+## AI assistants: the MCP server (Optional)
+
+Lets a household read and edit its menu from an AI assistant (Claude, ChatGPT…). The
+server is the `mcp` Edge Function; its code lives in `src/mcp/` and shares the generator
+and the menu rules with the app. Sign-in is Supabase Auth acting as an OAuth 2.1 server,
+so the assistant acts as the signed-in user and Row Level Security keeps it inside their
+household.
+
+Do all of this in the **dev** project first, then in production.
+
+1. **Supabase, Authentication > OAuth Server:** enable it, allow **dynamic client
+   registration** (assistants register themselves), and set the **authorization path** to
+   `/oauth/consent`. Supabase appends it to the project's Site URL, so that URL must be
+   where the app runs.
+2. **GitHub secrets** (Settings > Secrets and variables > Actions):
+   `SUPABASE_ACCESS_TOKEN` (a personal access token from your Supabase account),
+   `SUPABASE_PROJECT_REF_DEV` and `SUPABASE_PROJECT_REF_PROD`.
+3. **Deploy the function:** Actions > *Deploy MCP server* > Run workflow, choosing the
+   environment. By hand it is:
+
+   ```bash
+   npm run build:mcp
+   supabase functions deploy mcp --no-verify-jwt --project-ref <ref>
+   ```
+
+   `--no-verify-jwt` is required: an assistant has to reach the OAuth discovery document
+   before it has a token. The function checks the token itself.
+4. **Analytics (optional):** add `AMPLITUDE_API_KEY` under Edge Functions > Secrets, with
+   the Amplitude project key of that environment. Without it no `mcp_tool_called` events
+   are sent.
+5. **Show it to users:** set `VITE_MCP_ENABLED=true` in the frontend build (Vercel, and
+   `.env` locally). The Familia screen then shows "Conecta tu asistente" with the address,
+   `https://<ref>.supabase.co/functions/v1/mcp`. Leave it unset until the function is
+   deployed in that environment.
+
+To check a deployment without an assistant:
+
+```bash
+curl -i -X POST https://<ref>.supabase.co/functions/v1/mcp
+```
+
+It should answer `401` with a `WWW-Authenticate` header pointing at
+`/.well-known/oauth-protected-resource`.
+
+The assistant receives the user's own session token, so it can do whatever that user can
+do in the app, not only what the nine tools expose. The consent screen says so.
+
 ## Setting Up Edge Functions (Optional)
 
 > **Note:** the edge functions predate multi-tenancy. They generate/send a single global

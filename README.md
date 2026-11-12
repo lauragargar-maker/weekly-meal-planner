@@ -8,6 +8,7 @@ A modern web application for generating and managing weekly meal plans with Supa
 - 📅 **Weekly Menu Generation**: Automatically generates weekly menus with starter + main or single-course lunches, and main-course dinners
 - 📱 **Visual Agenda View**: Beautiful, responsive calendar-style view of the weekly menu
 - 🔔 **WhatsApp Notifications**: Automatically send weekly menus to designated contacts every Friday
+- 🤖 **AI assistants**: An MCP server lets a household check and edit its menu from Claude, ChatGPT or another assistant (see SETUP.md)
 - 🔄 **Real-time Updates**: Menu updates in real-time using Supabase subscriptions
 - 📱 **Mobile-First Design**: Fully responsive, accessible interface
 

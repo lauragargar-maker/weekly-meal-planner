@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth-context'
 import { getErrorMessage, translateError } from '../lib/errorMessages'
 import { HouseholdRules, parseRules } from '../lib/householdRules'
 import { trackEvent } from '../lib/analytics'
+import { mcpServerUrl } from '../lib/oauthConsent'
 import { Household } from '../types'
 import HouseholdRulesEditor from './HouseholdRulesEditor'
 
@@ -12,6 +13,8 @@ interface FamilyViewProps {
   /** Regenerates the current week with whatever the rules now say. */
   onRegenerateWeek?: () => Promise<void>
 }
+
+const MCP_URL = mcpServerUrl(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_MCP_ENABLED)
 
 /** "123456" → "123 456", for display only. */
 const formatJoinCode = (code: string): string =>
@@ -142,6 +145,18 @@ export default function FamilyView({ household, onRegenerateWeek }: FamilyViewPr
       if (err instanceof Error && err.name === 'AbortError') return
       console.error('Error sharing join code:', err)
       setToast('No se pudo compartir el código')
+    }
+  }
+
+  const copyMcpUrl = async () => {
+    if (!MCP_URL) return
+    try {
+      await navigator.clipboard.writeText(MCP_URL)
+      setToast('Dirección copiada')
+      trackEvent('mcp_url_copied')
+    } catch (err) {
+      console.error('Error copying the MCP address:', err)
+      setToast('No se pudo copiar la dirección')
     }
   }
 
@@ -278,6 +293,27 @@ export default function FamilyView({ household, onRegenerateWeek }: FamilyViewPr
           )}
         </div>
       </section>
+
+      {MCP_URL && (
+        <section className="mt-8 max-w-[620px]">
+          <h2 className="label-nam !mb-0">Conecta tu asistente</h2>
+          <p className="mt-1 text-[13px] font-bold font-sans leading-[1.4] text-tinta-500">
+            Pregunta qué hay de cenar o cambia un plato desde tu asistente de IA (Claude, ChatGPT…).
+            Añade ¡Ñam! como conector con esta dirección y entra con tu correo cuando te lo pida.
+          </p>
+          <div className="mt-3 flex items-center gap-2">
+            <p className="min-w-0 flex-1 truncate rounded-[14px] border-2 border-crema-300 bg-white px-3 py-2.5 text-[13px] font-bold font-sans text-tinta-900">
+              {MCP_URL}
+            </p>
+            <button
+              onClick={copyMcpUrl}
+              className="flex-none rounded-full bg-tinta-900 px-[18px] py-2 text-sm font-extrabold text-crema-100 transition-colors duration-120 hover:bg-tinta-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-tinta-900 focus:ring-offset-2"
+            >
+              Copiar
+            </button>
+          </div>
+        </section>
+      )}
 
       <div className="mt-8">
         <button

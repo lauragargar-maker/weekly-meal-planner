@@ -142,7 +142,39 @@ last item, so a household that shops together counts once per list.
 | Event | Properties | Where |
 |---|---|---|
 | `household_rules_saved` | — | `FamilyView.tsx:57` |
+| `mcp_url_copied` | — | `FamilyView.tsx` ("Conecta tu asistente") |
 | `feedback_submitted` | `type` (`bug` \| `idea` \| `otro` \| `none`), `screen` (`semana` \| `platos` \| `familia`) | `FeedbackSheet.tsx:131` |
 
 The feedback text itself does **not** reach Amplitude — it is stored in the `feedback`
 table in Supabase. The event only counts how many and from which screen.
+
+## AI assistants (MCP)
+
+A household can read and edit its menu from an AI assistant through the MCP server
+(`src/mcp/`, deployed as the `mcp` Edge Function). The assistant never opens the app, so
+its use is reported **from the server**, to the same Amplitude project.
+
+| Event | Properties | Where |
+|---|---|---|
+| `oauth_consent_viewed` | `client` (the assistant's name, as it registered itself) | `OAuthConsentScreen.tsx` |
+| `oauth_consent_approved` | `client` | `OAuthConsentScreen.tsx` |
+| `oauth_consent_denied` | `client` | `OAuthConsentScreen.tsx` |
+| `mcp_tool_called` | `tool` (see below), `ok` (`false` when the tool answered with an error), `week` (`anterior` \| `actual` \| `siguiente`: the week the call named, or the one its day falls in; absent for tools that are not about a week) | `src/mcp/analytics.ts` (server) |
+
+`tool` is one of `ver_menu`, `listar_platos`, `ver_reglas`, `ver_lista_compra`,
+`cambiar_plato`, `anadir_primer_plato`, `quitar_primer_plato`, `intercambiar_dias`,
+`generar_menu` (`src/mcp/tools.ts`).
+
+How `mcp_tool_called` differs from the browser events:
+
+- **Sent over Amplitude's HTTP API** (EU endpoint), with `platform: 'MCP'`. There is no
+  session, no autocapture and no replay behind it.
+- **Same identity.** `user_id` is the Supabase user and the `household_id` group is set,
+  so it counts per household exactly like the app's events.
+- **`ok: false` is usually not a failure.** It includes the assistant asking for a dish
+  that is not in the catalogue, or `generar_menu` refusing to replace a week without
+  confirmation. Filter on `ok = true` to count things that actually happened.
+- **Needs `AMPLITUDE_API_KEY` as a secret of the Edge Function.** Without it the server
+  sends nothing, silently — the same trap as an unset `VITE_AMPLITUDE_API_KEY`.
+- The three consent events fire in the browser, on `/oauth/consent`, once per connection
+  of an assistant (not per use).
