@@ -1,0 +1,17 @@
+{
+  "voice_id": "",
+  "model_id": "eleven_multilingual_v2",
+  "language_code": "es",
+  "voice_settings": { "stability": 0.45, "similarity_boost": 0.8, "style": 0.25, "use_speaker_boost": true, "speed": 1.0 },
+  "lines": [
+    { "id": "01-problema", "start": 0.4, "end": 5.0, "text": "¿Qué comemos hoy? La pregunta de cada día." },
+    { "id": "02-promesa", "start": 5.5, "end": 9.0, "text": "Con Ñam, la semana queda decidida en un minuto." },
+    { "id": "03-reglas", "start": 9.3, "end": 17.8, "text": "Le cuentas cómo coméis en casa: cuánto pescado, cuánta legumbre y qué no queréis por la noche." },
+    { "id": "04-semana", "start": 18.2, "end": 24.8, "text": "Y cada semana, el menú se hace solo: siete días variados y con vuestras reglas." },
+    { "id": "05-editar", "start": 25.2, "end": 31.8, "text": "¿Hoy no apetece? Toca el día y cámbialo… o pásalo a otro día." },
+    { "id": "06-platos", "start": 32.1, "end": 38.0, "text": "Empiezas con más de sesenta platos de casa y añades los vuestros, con su receta." },
+    { "id": "07-lista", "start": 38.2, "end": 44.8, "text": "Y la lista de la compra se hace sola, ordenada por pasillos del súper." },
+    { "id": "08-familia", "start": 45.2, "end": 51.1, "text": "Comparte el código de tu casa, y todos veréis el mismo menú y la misma lista." },
+    { "id": "09-cierre", "start": 51.6, "end": 54.8, "text": "Deja de pensar qué comer. Prueba Ñam, gratis." }
+  ]
+}

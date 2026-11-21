@@ -53,9 +53,26 @@ done
 `--stills 3,9,20` on `render.mjs` saves PNGs of those moments to
 `promo/out/nam/stills` instead of rendering the video.
 
-The voice-over will be recorded later (ElevenLabs). The lines and their timings
-are in the script, and `docs/promo/nam-musica.m4a` is the music bed on its own,
-for mixing it under the voice.
+### Voice-over (ElevenLabs)
+
+The lines, their slots and the voice are in `video/nam-voz.json`. `record/voz.py`
+asks ElevenLabs for each line (once: a take is reused while its text, voice and
+settings stay the same), trims it, fits it to its slot and mixes it over the music,
+which ducks under the voice. It needs a paid plan to use the Spanish voices of the
+voice library through the API.
+
+```bash
+ELEVENLABS_API_KEY=… python3 promo/record/voz.py promo/out/nam/voz   # --only 03-reglas to retake a line
+for f in v h; do
+  ffmpeg -y -i promo/out/nam/video-$f-sin-musica.mp4 -i promo/out/nam/voz/mezcla.wav -map 0:v -map 1:a \
+    -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart promo/out/nam/video-$f-voz.mp4
+done
+```
+
+Behind the session's proxy, which adds the key itself, pass `ELEVENLABS_API_KEY=proxy-injected`
+and `SSL_CERT_FILE` pointing at the proxy's CA bundle.
+
+`docs/promo/nam-musica.m4a` is the music bed on its own.
 
 ## Shopping list video (45 s, vertical)
 
